@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 project(
   klogg
@@ -122,7 +123,9 @@ if(MSVC)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /D __SSE4_1__=1 /D __SSE4_2__=1")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D __SSE4_1__=1 /D __SSE4_2__=1")
 
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj ")
+  # /FS allows parallel MSVC compilers to coordinate writes to the same PDB.
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /FS")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FS /bigobj ")
 else()
   ucm_add_flags(CXX "-fno-sized-deallocation -fno-omit-frame-pointer")
 

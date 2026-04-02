@@ -156,6 +156,29 @@ void TabbedCrawlerWidget::removeCrawler( int index )
         myTabBar_.hide();
 }
 
+int TabbedCrawlerWidget::indexOfPath( const QString& fileName ) const
+{
+    for ( int i = 0; i < count(); ++i ) {
+        if ( tabPathAt( i ) == fileName ) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+void TabbedCrawlerWidget::setTabPresentation( const QString& fileName, const QString& tabText,
+                                              const QString& toolTip )
+{
+    const auto tabIndex = indexOfPath( fileName );
+    if ( tabIndex < 0 ) {
+        return;
+    }
+
+    myTabBar_.setTabText( tabIndex, tabText );
+    myTabBar_.setTabToolTip( tabIndex, toolTip );
+}
+
 void TabbedCrawlerWidget::mouseReleaseEvent( QMouseEvent* event )
 {
     LOG_DEBUG << "TabbedCrawlerWidget::mouseReleaseEvent";

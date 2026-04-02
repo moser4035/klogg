@@ -10,7 +10,9 @@
 # The documentation can be found at the library's page:
 # https://github.com/onqtam/ucm
 
-cmake_minimum_required(VERSION 2.8.12)
+if(CMAKE_VERSION VERSION_LESS 3.5)
+    message(FATAL_ERROR "ucm.cmake requires CMake 3.5 or newer")
+endif()
 
 include(CMakeParseArguments)
 
