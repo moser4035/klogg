@@ -79,6 +79,23 @@ void RemoteLogSettings::addRecentTarget( const RemoteLogProfile& profile )
     }
 }
 
+void RemoteLogSettings::removeRecentTarget( const RemoteLogProfile& profile )
+{
+    recentTargets_.erase(
+        std::remove_if( recentTargets_.begin(), recentTargets_.end(),
+                        [ &profile ]( const auto& existing ) {
+                            return existing.host == profile.host && existing.port == profile.port
+                                && existing.user == profile.user
+                                && existing.remotePath == profile.remotePath;
+                        } ),
+        recentTargets_.end() );
+}
+
+void RemoteLogSettings::clearRecentTargets()
+{
+    recentTargets_.clear();
+}
+
 void RemoteLogSettings::saveToStorage( QSettings& settings ) const
 {
     LOG_DEBUG << "RemoteLogSettings::saveToStorage";

@@ -6,8 +6,12 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QSpinBox>
+#include <QHBoxLayout>
 #include <QVBoxLayout>
+
+#include "remotelogsettings.h"
 
 namespace {
 int toolKindIndex( RemoteLogToolKind toolKind )
@@ -65,11 +69,15 @@ RemoteLogDialog::RemoteLogDialog( const std::vector<RemoteLogProfile>& recentTar
     auto* formLayout = new QFormLayout();
 
     recentTargetsCombo_ = new QComboBox( this );
-    recentTargetsCombo_->addItem( tr( "Custom target" ) );
-    for ( const auto& target : recentTargets_ ) {
-        recentTargetsCombo_->addItem( target.title() + " (" + target.sourceLabel() + ")" );
-    }
-    formLayout->addRow( tr( "Recent target" ), recentTargetsCombo_ );
+    removeRecentTargetButton_ = new QPushButton( tr( "Remove selected" ), this );
+    clearRecentTargetsButton_ = new QPushButton( tr( "Clear all" ), this );
+
+    auto* recentTargetsLayout = new QHBoxLayout();
+    recentTargetsLayout->setContentsMargins( 0, 0, 0, 0 );
+    recentTargetsLayout->addWidget( recentTargetsCombo_ );
+    recentTargetsLayout->addWidget( removeRecentTargetButton_ );
+    recentTargetsLayout->addWidget( clearRecentTargetsButton_ );
+    formLayout->addRow( tr( "Recent target" ), recentTargetsLayout );
 
     displayNameEdit_ = new QLineEdit( this );
     formLayout->addRow( tr( "Display name" ), displayNameEdit_ );
@@ -120,9 +128,14 @@ RemoteLogDialog::RemoteLogDialog( const std::vector<RemoteLogProfile>& recentTar
              &RemoteLogDialog::updateFromRecentSelection );
     connect( authModeCombo_, QOverload<int>::of( &QComboBox::currentIndexChanged ), this,
              &RemoteLogDialog::updateAuthUi );
+    connect( removeRecentTargetButton_, &QPushButton::clicked, this,
+             &RemoteLogDialog::removeSelectedRecentTarget );
+    connect( clearRecentTargetsButton_, &QPushButton::clicked, this,
+             &RemoteLogDialog::clearRecentTargets );
     connect( buttonBox_, &QDialogButtonBox::accepted, this, &RemoteLogDialog::validateAndAccept );
     connect( buttonBox_, &QDialogButtonBox::rejected, this, &RemoteLogDialog::reject );
 
+    refreshRecentTargets();
     updateAuthUi();
 }
 
@@ -144,6 +157,8 @@ RemoteLogLaunchRequest RemoteLogDialog::request() const
 
 void RemoteLogDialog::updateFromRecentSelection( int index )
 {
+    updateRecentTargetActions();
+
     if ( index <= 0 || index > static_cast<int>( recentTargets_.size() ) ) {
         return;
     }
@@ -169,6 +184,66 @@ void RemoteLogDialog::updateAuthUi()
     const auto passwordMode = authModeFromIndex( authModeCombo_->currentIndex() )
         == RemoteLogAuthMode::Password;
     passwordEdit_->setEnabled( passwordMode );
+}
+
+void RemoteLogDialog::removeSelectedRecentTarget()
+{
+    const auto currentIndex = recentTargetsCombo_->currentIndex();
+    if ( currentIndex <= 0 || currentIndex > static_cast<int>( recentTargets_.size() ) ) {
+        return;
+    }
+
+    const auto profile = recentTargets_.at( static_cast<size_t>( currentIndex - 1 ) );
+    auto& remoteLogSettings = RemoteLogSettings::getSynced();
+    remoteLogSettings.removeRecentTarget( profile );
+    remoteLogSettings.save();
+    recentTargets_ = remoteLogSettings.recentTargets();
+    refreshRecentTargets();
+}
+
+void RemoteLogDialog::clearRecentTargets()
+{
+    if ( recentTargets_.empty() ) {
+        return;
+    }
+
+    const auto userAction = QMessageBox::question(
+        this, tr( "Open Remote Log" ),
+        tr( "Remove all recent remote targets from the list?" ), QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No );
+    if ( userAction != QMessageBox::Yes ) {
+        return;
+    }
+
+    auto& remoteLogSettings = RemoteLogSettings::getSynced();
+    remoteLogSettings.clearRecentTargets();
+    remoteLogSettings.save();
+    recentTargets_ = remoteLogSettings.recentTargets();
+    refreshRecentTargets();
+}
+
+void RemoteLogDialog::refreshRecentTargets()
+{
+    const auto previousSelection = recentTargetsCombo_->currentIndex();
+    recentTargetsCombo_->blockSignals( true );
+    recentTargetsCombo_->clear();
+    recentTargetsCombo_->addItem( tr( "Custom target" ) );
+    for ( const auto& target : recentTargets_ ) {
+        recentTargetsCombo_->addItem( target.title() + " (" + target.sourceLabel() + ")" );
+    }
+
+    const auto hasPreviousRecentSelection = previousSelection > 0 && previousSelection
+        <= static_cast<int>( recentTargets_.size() );
+    recentTargetsCombo_->setCurrentIndex( hasPreviousRecentSelection ? previousSelection : 0 );
+    recentTargetsCombo_->blockSignals( false );
+    updateRecentTargetActions();
+}
+
+void RemoteLogDialog::updateRecentTargetActions()
+{
+    const auto hasRecentTargets = !recentTargets_.empty();
+    removeRecentTargetButton_->setEnabled( hasRecentTargets && recentTargetsCombo_->currentIndex() > 0 );
+    clearRecentTargetsButton_->setEnabled( hasRecentTargets );
 }
 
 void RemoteLogDialog::validateAndAccept()

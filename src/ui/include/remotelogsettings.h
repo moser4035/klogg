@@ -53,6 +53,12 @@ class RemoteLogSettings final : public Persistable<RemoteLogSettings> {
     }
 
     void addRecentTarget( const RemoteLogProfile& profile );
+    void removeRecentTarget( const RemoteLogProfile& profile );
+    void clearRecentTargets();
+    [[nodiscard]] bool hasRecentTargets() const
+    {
+        return !recentTargets_.empty();
+    }
 
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );

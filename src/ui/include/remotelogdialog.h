@@ -10,6 +10,7 @@
 class QComboBox;
 class QDialogButtonBox;
 class QLineEdit;
+class QPushButton;
 class QSpinBox;
 
 class RemoteLogDialog : public QDialog {
@@ -25,13 +26,19 @@ class RemoteLogDialog : public QDialog {
   private Q_SLOTS:
     void updateFromRecentSelection( int index );
     void updateAuthUi();
+    void removeSelectedRecentTarget();
+    void clearRecentTargets();
     void validateAndAccept();
 
   private:
     void applyProfile( const RemoteLogProfile& profile );
+    void refreshRecentTargets();
+    void updateRecentTargetActions();
 
     std::vector<RemoteLogProfile> recentTargets_;
     QComboBox* recentTargetsCombo_ = nullptr;
+    QPushButton* removeRecentTargetButton_ = nullptr;
+    QPushButton* clearRecentTargetsButton_ = nullptr;
     QLineEdit* displayNameEdit_ = nullptr;
     QLineEdit* hostEdit_ = nullptr;
     QSpinBox* portSpin_ = nullptr;
