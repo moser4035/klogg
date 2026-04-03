@@ -8,10 +8,10 @@ will be enabled if available on build machine.
 
 ## Getting the Source
 
-This project is [hosted on GitHub](https://github.com/variar/klogg). You can clone this project directly using this command:
+This project is [hosted on GitHub](https://github.com/moser4035/klogg). You can clone this project directly using this command:
 
 ```
-git clone https://github.com/variar/klogg
+git clone https://github.com/moser4035/klogg
 ```
 
 ## Dependencies
@@ -50,6 +50,21 @@ CPM will try to find Hyperscan, TBB, uchardet and xxhash installed on build host
 If a library can't be found, the one provided by CPM will be used.
 
 ## Building
+
+### Directory layout
+
+The source tree should stay clean. Generated content is expected to live under the build directory you choose.
+
+- Source tree:
+  - `packaging/windows/` contains the maintained Windows helper scripts and installer definition
+  - `packaging/windows/openssl-1.1/` can optionally hold the prebuilt OpenSSL runtime DLLs used for Windows packaging
+- Development build output:
+  - `build_root/` (or another directory you choose) contains CMake files, object files and `output/`
+- Release build output:
+  - `build_release/output/<config>/` contains compiled binaries
+  - `build_release/release/` contains the staged files used for packaging
+  - `build_release/chocolatey/` contains local Chocolatey staging files
+  - `build_release/packages/` contains the final portable ZIP, installer and optional PDB ZIP
 
 ### Configuration options
 
@@ -94,58 +109,120 @@ See `.github/workflows/ci-build.yml` for more information on build process.
 
 ### Building on Windows
 
-Install Microsoft Visual Studio 2017 or 2019 with C++ support.
-Community edition can be downloaded from [Microsoft](https://visualstudio.microsoft.com/vs/).
+The recommended local Windows target is `x64` with `Qt6` and a current Visual Studio toolchain.
+The supported local workflows are:
 
-Intall latest Qt version using [online installer](https://www.qt.io/download-qt-installer).
-Make sure to select version matching Visual Studio installation. 64-bit libraries are recommended.
+- Development or debug build: configure and build directly with CMake
+- Release build: run `packaging/windows/build_release_bundle.cmd`
 
-Install CMake from [Kitware](https://cmake.org/download/).
-Use version 3.14 or later for Visual Studio 2019 support.
+#### Prerequisites
 
-Download the Boost source code from http://www.boost.org/users/download/.
-Extract to some folder. Directory structure should be something like `C:\Boost\boost_1_63_0`.
-Then add `BOOST_ROOT` environment variable pointing to main directory of Boost sources so CMake is able to fine it.
+- Visual Studio 2022 or newer with Desktop C++ tools
+- CMake 3.21 or newer
+- Qt 6 for MSVC x64
+- Boost headers, with `BOOST_ROOT` pointing to the extracted Boost directory
+- Optional for release packaging:
+  - 7-Zip for portable ZIP archives
+  - NSIS 3 for the installer
+  - prebuilt OpenSSL 1.1 runtime DLLs in `packaging/windows/openssl-1.1/x64/bin/`
 
-Prepare build environment for CMake. Open command prompt window and depending on version of Visual Studio run either
+The current packaging scripts will automatically pick up:
 
-```
-call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Community\Common7\Tools\vsdevcmd" -arch=x64
-```
+- `Qt6_DIR` or `KLOGG_QT_DIR`
+- `BOOST_ROOT`
+- `packaging/windows/openssl-1.1/x64/bin/libcrypto-1_1-x64.dll`
+- `packaging/windows/openssl-1.1/x64/bin/libssl-1_1-x64.dll`
 
-or
+Use a Developer PowerShell or Developer Command Prompt so the MSVC toolchain is already available.
 
-```
-call "%ProgramFiles(x86)%\Microsoft Visual Studio\2017\Community\Common7\Tools\vsdevcmd" -arch=x64
-```
+#### Development or debug build
 
-Next setup Qt paths:
+This is the preferred flow when you are iterating locally and do not need release packaging.
 
-```
-<path_to_qt_installation>\bin\qtenv2.bat
-```
+Configure:
 
-Then add CMake to PATH:
-
-```
-set PATH=<path_to_cmake_bin>:$PATH
-```
-
-Configure klogg solution (use CMake generator matching Visual Studio version):
-
-```
-cd <path_to_project_root>
-md build_root
-cd build_root
-cmake -G "Visual Studio 16 2019 Win64" -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+```powershell
+cmake -S . -B build_root `
+  -G "Visual Studio 17 2022" -A x64 `
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+  -DQt6_DIR="C:\Qt\6.11.0\msvc2022_64\lib\cmake\Qt6" `
+  -DBOOST_ROOT="C:\Boost\boost_1_82_0"
 ```
 
-CMake should generate `klogg.sln` file in `<path_to_project_root>\build_root` directory. Open solution and build it.
+Build the main application:
 
-Binaries are placed into `build_root/output`.
+```powershell
+cmake --build build_root --config RelWithDebInfo --target klogg
+```
 
-For https network urls support download precompiled openssl library https://mirror.firedaemon.com/OpenSSL/openssl-1.1.1l-dev.zip.
-Put libcrypto-1_1 and libssl-1_1 for desired architecture near klogg binaries.
+Useful locations:
+
+- binaries: `build_root/output/RelWithDebInfo/`
+- generated headers and docs: `build_root/generated/`
+
+Run tests:
+
+```powershell
+ctest --test-dir build_root --build-config RelWithDebInfo --output-on-failure
+```
+
+If you want a faster Debug-style iteration loop, replace `RelWithDebInfo` with `Debug`.
+
+#### Release build
+
+Use the wrapper script when you want a complete local Windows release run, including:
+
+- CMake configure
+- application build
+- `windeployqt`
+- staging files into a build-local `release/` directory
+- portable ZIP generation
+- optional NSIS installer
+- optional PDB ZIP when building with `RelWithDebInfo`
+
+The top-level entry point is:
+
+```cmd
+packaging\windows\build_release_bundle.cmd
+```
+
+Recommended environment variables before running it:
+
+```cmd
+set BOOST_ROOT=C:\Boost\boost_1_82_0
+set KLOGG_QT_DIR=C:\Qt\6.11.0\msvc2022_64
+set KLOGG_BUILD_ROOT=build_release
+set KLOGG_BUILD_CONFIG=RelWithDebInfo
+packaging\windows\build_release_bundle.cmd
+```
+
+Notes:
+
+- `build_release_bundle.cmd` is the full local release entry point
+- `prepare_release.cmd` packages an already-configured build directory and can optionally build it, but it does not perform the initial CMake configure step
+- `RelWithDebInfo` is recommended for local releases because it keeps debug symbols and enables the `*-pdb.zip` artifact
+- if you switch to plain `Release`, the main installer and portable ZIP are still produced, but there may be no PDB ZIP
+
+Useful release output locations:
+
+- compiled binaries: `build_release/output/RelWithDebInfo/`
+- staged package contents: `build_release/release/`
+- final deliverables: `build_release/packages/`
+- Chocolatey staging: `build_release/chocolatey/`
+
+The final package directory can contain:
+
+- `klogg-<version>-x64-Qt6-portable.zip`
+- `klogg-<version>-x64-Qt6-setup.exe`
+- `klogg-<version>-x64-Qt6-pdb.zip`
+
+If `makensis.exe` or `7z.exe` are installed in standard locations, the scripts will detect them automatically.
+You can also override discovery explicitly:
+
+```cmd
+set KLOGG_MAKENSIS_EXE=C:\Program Files (x86)\NSIS\makensis.exe
+set KLOGG_7Z_EXE=C:\Program Files\7-Zip\7z.exe
+```
 
 ### Building on Mac OS
 

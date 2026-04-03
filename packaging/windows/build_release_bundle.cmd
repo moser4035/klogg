@@ -16,7 +16,7 @@ if not defined platform (
         set "platform=%KLOGG_ARCH%"
     )
 )
-if not defined KLOGG_CMAKE_GENERATOR set "KLOGG_CMAKE_GENERATOR=Ninja"
+if not defined KLOGG_CMAKE_GENERATOR call :detect_default_generator
 if not defined KLOGG_CMAKE_SOURCE_CACHE set "KLOGG_CMAKE_SOURCE_CACHE=%KLOGG_WORKSPACE%\cpm_cache"
 if not defined KLOGG_DO_INSTALLER set "KLOGG_DO_INSTALLER=1"
 if not defined KLOGG_DO_PACKAGE set "KLOGG_DO_PACKAGE=1"
@@ -79,6 +79,31 @@ if defined KLOGG_QT_CMAKE_DIR (
 if errorlevel 1 exit /b 1
 exit /b 0
 
+:detect_default_generator
+set "VSWHERE_EXE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if exist "%VSWHERE_EXE%" (
+    set "VS_VERSION="
+    for /f "delims=" %%I in ('"%VSWHERE_EXE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationVersion') do (
+        set "VS_VERSION=%%I"
+        goto :vs_version_found
+    )
+)
+goto :generator_fallback
+
+:vs_version_found
+if /I "%VS_VERSION:~0,2%"=="18" (
+    set "KLOGG_CMAKE_GENERATOR=Visual Studio 18 2026"
+    exit /b 0
+)
+if /I "%VS_VERSION:~0,2%"=="17" (
+    set "KLOGG_CMAKE_GENERATOR=Visual Studio 17 2022"
+    exit /b 0
+)
+
+:generator_fallback
+set "KLOGG_CMAKE_GENERATOR=Ninja"
+exit /b 0
+
 :load_existing_cache_settings
 set "CACHE_FILE=%BUILD_DIR%\CMakeCache.txt"
 if not exist "%CACHE_FILE%" exit /b 0
@@ -88,17 +113,22 @@ set "CACHED_CMAKE_GENERATOR_INSTANCE="
 set "CACHED_BUILD_TYPE="
 set "CACHED_QT6_DIR="
 set "CACHED_QT5_DIR="
+set "CACHED_QT_DIR="
 
-for /f "tokens=1,* delims==" %%A in ('findstr /B /C:"CMAKE_GENERATOR:INTERNAL=" /C:"CMAKE_GENERATOR_INSTANCE:INTERNAL=" /C:"CMAKE_BUILD_TYPE:STRING=" /C:"Qt6_DIR:PATH=" /C:"Qt5_DIR:PATH=" "%CACHE_FILE%"') do (
+for /f "tokens=1,* delims==" %%A in ('findstr /R /B /C:"CMAKE_GENERATOR:INTERNAL=" /C:"CMAKE_GENERATOR_INSTANCE:INTERNAL=" /C:"CMAKE_BUILD_TYPE:STRING=" /C:"Qt6_DIR:" /C:"Qt5_DIR:" /C:"QT_DIR:" "%CACHE_FILE%"') do (
     if /I "%%A"=="CMAKE_GENERATOR:INTERNAL" set "CACHED_CMAKE_GENERATOR=%%B"
     if /I "%%A"=="CMAKE_GENERATOR_INSTANCE:INTERNAL" set "CACHED_CMAKE_GENERATOR_INSTANCE=%%B"
     if /I "%%A"=="CMAKE_BUILD_TYPE:STRING" set "CACHED_BUILD_TYPE=%%B"
     if /I "%%A"=="Qt6_DIR:PATH" set "CACHED_QT6_DIR=%%B"
+    if /I "%%A"=="Qt6_DIR:UNINITIALIZED" set "CACHED_QT6_DIR=%%B"
     if /I "%%A"=="Qt5_DIR:PATH" set "CACHED_QT5_DIR=%%B"
+    if /I "%%A"=="Qt5_DIR:UNINITIALIZED" set "CACHED_QT5_DIR=%%B"
+    if /I "%%A"=="QT_DIR:PATH" set "CACHED_QT_DIR=%%B"
+    if /I "%%A"=="QT_DIR:UNINITIALIZED" set "CACHED_QT_DIR=%%B"
 )
 
 if defined CACHED_CMAKE_GENERATOR (
-    if "%KLOGG_CMAKE_GENERATOR%"=="Ninja" (
+    if /I "%KLOGG_CMAKE_GENERATOR%"=="Ninja" (
         echo Reusing existing CMake generator "%CACHED_CMAKE_GENERATOR%" from "%CACHE_FILE%".
         set "KLOGG_CMAKE_GENERATOR=%CACHED_CMAKE_GENERATOR%"
         if defined CACHED_CMAKE_GENERATOR_INSTANCE set "KLOGG_CMAKE_GENERATOR_INSTANCE=%CACHED_CMAKE_GENERATOR_INSTANCE%"
@@ -116,11 +146,21 @@ if not defined KLOGG_QT_DIR (
         if defined CACHED_QT6_DIR (
             set "KLOGG_QT_DIR=%CACHED_QT6_DIR%"
             set "KLOGG_QT_CMAKE_DIR=%CACHED_QT6_DIR%"
+        ) else (
+            if defined CACHED_QT_DIR (
+                set "KLOGG_QT_DIR=%CACHED_QT_DIR%"
+                set "KLOGG_QT_CMAKE_DIR=%CACHED_QT_DIR%"
+            )
         )
     ) else (
         if defined CACHED_QT5_DIR (
             set "KLOGG_QT_DIR=%CACHED_QT5_DIR%"
             set "KLOGG_QT_CMAKE_DIR=%CACHED_QT5_DIR%"
+        ) else (
+            if defined CACHED_QT_DIR (
+                set "KLOGG_QT_DIR=%CACHED_QT_DIR%"
+                set "KLOGG_QT_CMAKE_DIR=%CACHED_QT_DIR%"
+            )
         )
     )
 )

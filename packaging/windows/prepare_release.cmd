@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 for %%I in ("%~dp0..\..") do set "SCRIPT_DIR=%%~fI"
 set "COPY_IF_EXISTS=%~dp0copy_if_exists.cmd"
@@ -20,13 +20,15 @@ if not defined KLOGG_BUILD_PARALLEL set "KLOGG_BUILD_PARALLEL="
 set "BUILD_OUTPUT_DIR=%KLOGG_WORKSPACE%\%KLOGG_BUILD_ROOT%\output\%KLOGG_BUILD_CONFIG%"
 if not exist "%BUILD_OUTPUT_DIR%\klogg.exe" set "BUILD_OUTPUT_DIR=%KLOGG_WORKSPACE%\%KLOGG_BUILD_ROOT%\output"
 set "GENERATED_DIR=%KLOGG_WORKSPACE%\%KLOGG_BUILD_ROOT%\generated"
-set "RELEASE_DIR=%KLOGG_WORKSPACE%\release"
-set "CHOCO_DIR=%KLOGG_WORKSPACE%\chocolately"
 set "BUILD_DIR=%KLOGG_WORKSPACE%\%KLOGG_BUILD_ROOT%"
+set "RELEASE_DIR=%BUILD_DIR%\release"
+set "CHOCO_DIR=%BUILD_DIR%\chocolatey"
 set "PACKAGES_DIR=%BUILD_DIR%\packages"
-set "PORTABLE_ZIP=%KLOGG_WORKSPACE%\klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-portable.zip"
-set "PDB_ZIP=%KLOGG_WORKSPACE%\klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-pdb.zip"
-set "SETUP_EXE=%KLOGG_WORKSPACE%\klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-setup.exe"
+set "PORTABLE_ZIP=%PACKAGES_DIR%\klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-portable.zip"
+set "PDB_ZIP=%PACKAGES_DIR%\klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-pdb.zip"
+set "SETUP_EXE=%PACKAGES_DIR%\klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-setup.exe"
+
+if not exist "%PACKAGES_DIR%" mkdir "%PACKAGES_DIR%"
 
 if /I "%KLOGG_DO_BUILD%"=="1" (
     call :build_release
@@ -44,6 +46,7 @@ if not exist "%BUILD_OUTPUT_DIR%\%KLOGG_QT%Core.dll" (
     if defined KLOGG_QT_DIR (
         if exist "%KLOGG_QT_DIR%\bin\windeployqt.exe" (
             echo Running windeployqt from "%KLOGG_QT_DIR%\bin\windeployqt.exe"...
+            set "PATH=%KLOGG_QT_DIR%\bin;%PATH%"
             "%KLOGG_QT_DIR%\bin\windeployqt.exe" "%BUILD_OUTPUT_DIR%\klogg.exe"
         ) else (
             echo Warning: windeployqt.exe not found under "%KLOGG_QT_DIR%\bin".
@@ -58,7 +61,8 @@ if defined KLOGG_QT_DIR (
     call "%COPY_IF_EXISTS%" "%KLOGG_QT_DIR%\bin\%KLOGG_QT%Concurrent.dll" "%BUILD_OUTPUT_DIR%\%KLOGG_QT%Concurrent.dll"
 )
 
-if not exist "%RELEASE_DIR%" mkdir "%RELEASE_DIR%"
+if exist "%RELEASE_DIR%" rmdir /S /Q "%RELEASE_DIR%"
+mkdir "%RELEASE_DIR%"
 
 echo Copying build output from "%BUILD_OUTPUT_DIR%"...
 xcopy "%BUILD_OUTPUT_DIR%\*" "%RELEASE_DIR%\" /E /I /Y >nul
@@ -69,6 +73,7 @@ call "%COPY_IF_EXISTS%" "%KLOGG_WORKSPACE%\COPYING" "%RELEASE_DIR%\COPYING"
 call "%COPY_IF_EXISTS%" "%KLOGG_WORKSPACE%\NOTICE" "%RELEASE_DIR%\NOTICE"
 call "%COPY_IF_EXISTS%" "%KLOGG_WORKSPACE%\README.md" "%RELEASE_DIR%\README.md"
 call "%COPY_IF_EXISTS%" "%KLOGG_WORKSPACE%\DOCUMENTATION.md" "%RELEASE_DIR%\DOCUMENTATION.md"
+call "%COPY_IF_EXISTS%" "%KLOGG_WORKSPACE%\packaging\windows\openssl-1.1\LICENSE" "%RELEASE_DIR%\OpenSSL-LICENSE.txt"
 
 echo Copying VC runtime...
 call :detect_vc_redist
@@ -98,12 +103,11 @@ if defined SSL_DIR (
 )
 
 echo Copying packaging files...
-if not exist "%CHOCO_DIR%" mkdir "%CHOCO_DIR%"
+if exist "%CHOCO_DIR%" rmdir /S /Q "%CHOCO_DIR%"
+mkdir "%CHOCO_DIR%"
 if not exist "%CHOCO_DIR%\tools" mkdir "%CHOCO_DIR%\tools"
 call "%COPY_IF_EXISTS%" "%KLOGG_WORKSPACE%\packaging\windows\chocolatey\klogg.nuspec" "%CHOCO_DIR%\klogg.nuspec"
 call "%COPY_IF_EXISTS%" "%KLOGG_WORKSPACE%\packaging\windows\chocolatey\tools\chocolateyInstall.ps1" "%CHOCO_DIR%\tools\chocolateyInstall.ps1"
-call "%COPY_IF_EXISTS%" "%KLOGG_WORKSPACE%\packaging\windows\klogg.nsi" "%KLOGG_WORKSPACE%\klogg.nsi"
-call "%COPY_IF_EXISTS%" "%KLOGG_WORKSPACE%\packaging\windows\FileAssociation.nsh" "%KLOGG_WORKSPACE%\FileAssociation.nsh"
 
 call :detect_7z
 if "%SEVENZIP_EXE%"=="" (
@@ -134,9 +138,39 @@ if exist "%RELEASE_DIR%\*.pdb" "%SEVENZIP_EXE%" a "%PDB_ZIP%" "%RELEASE_DIR%\*.p
 if not exist "%PDB_ZIP%" echo No PDB files found. Skipping PDB archive.
 
 :after_archives
-if /I "%KLOGG_DO_INSTALLER%"=="1" call :build_installer
-if errorlevel 1 exit /b 1
-if /I "%KLOGG_DO_PACKAGE%"=="1" call :collect_packages
+if /I "%KLOGG_DO_INSTALLER%"=="1" (
+    if not defined MAKENSIS_EXE (
+        if defined KLOGG_MAKENSIS_EXE (
+            if exist "%KLOGG_MAKENSIS_EXE%" set "MAKENSIS_EXE=%KLOGG_MAKENSIS_EXE%"
+        )
+    )
+    if not defined MAKENSIS_EXE (
+        if exist "%ProgramFiles%\NSIS\makensis.exe" set "MAKENSIS_EXE=%ProgramFiles%\NSIS\makensis.exe"
+    )
+    if not defined MAKENSIS_EXE (
+        if exist "%ProgramFiles(x86)%\NSIS\makensis.exe" set "MAKENSIS_EXE=%ProgramFiles(x86)%\NSIS\makensis.exe"
+    )
+    if not defined MAKENSIS_EXE (
+        for /f "delims=" %%I in ('where makensis.exe 2^>nul') do (
+            set "MAKENSIS_EXE=%%I"
+        )
+    )
+    if not defined MAKENSIS_EXE (
+        echo makensis.exe not found. Skipping installer build.
+    ) else (
+        echo Using NSIS from "!MAKENSIS_EXE!".
+        echo Building NSIS installer...
+        "!MAKENSIS_EXE!" /DVERSION=%KLOGG_VERSION% /DPLATFORM=%KLOGG_ARCH% /DQT_MAJOR=%KLOGG_QT% /DSTAGE_DIR=%RELEASE_DIR% /DOUTPUT_DIR=%PACKAGES_DIR% "%KLOGG_WORKSPACE%\packaging\windows\klogg.nsi"
+        if errorlevel 1 exit /b 1
+    )
+)
+
+if /I "%KLOGG_DO_PACKAGE%"=="1" (
+    echo Collecting packages into "%PACKAGES_DIR%"...
+    if not exist "%PORTABLE_ZIP%" echo Warning: Missing "%PORTABLE_ZIP%"
+    if not exist "%PDB_ZIP%" echo Warning: Missing "%PDB_ZIP%"
+    if not exist "%SETUP_EXE%" echo Warning: Missing "%SETUP_EXE%"
+)
 
 :done
 echo Done!
@@ -166,20 +200,45 @@ if errorlevel 1 exit /b 1
 goto :eof
 
 :detect_qt_dir
-if defined KLOGG_QT_DIR goto :eof
+if defined KLOGG_QT_DIR (
+    call :normalize_qt_dir "%KLOGG_QT_DIR%"
+    goto :eof
+)
 set "CACHE_FILE=%KLOGG_WORKSPACE%\%KLOGG_BUILD_ROOT%\CMakeCache.txt"
 if not exist "%CACHE_FILE%" goto :eof
 
 set "QT_CONFIG_DIR="
-for /f "tokens=1,* delims==" %%A in ('findstr /B /C:"Qt6_DIR:PATH=" "%CACHE_FILE%"') do set "QT_CONFIG_DIR=%%B"
-if not defined QT_CONFIG_DIR (
-    for /f "tokens=1,* delims==" %%A in ('findstr /B /C:"Qt5_DIR:PATH=" "%CACHE_FILE%"') do set "QT_CONFIG_DIR=%%B"
+set "QT_PREFIX_DIR="
+for /f "tokens=1,* delims==" %%A in ('findstr /R /B /C:"Qt6_DIR:" /C:"Qt5_DIR:" /C:"QT_DIR:" /C:"CMAKE_PREFIX_PATH:" "%CACHE_FILE%"') do (
+    if /I "%%A"=="Qt6_DIR:PATH" set "QT_CONFIG_DIR=%%B"
+    if /I "%%A"=="Qt6_DIR:UNINITIALIZED" set "QT_CONFIG_DIR=%%B"
+    if /I "%%A"=="Qt5_DIR:PATH" set "QT_CONFIG_DIR=%%B"
+    if /I "%%A"=="Qt5_DIR:UNINITIALIZED" set "QT_CONFIG_DIR=%%B"
+    if /I "%%A"=="QT_DIR:PATH" if not defined QT_CONFIG_DIR set "QT_CONFIG_DIR=%%B"
+    if /I "%%A"=="QT_DIR:UNINITIALIZED" if not defined QT_CONFIG_DIR set "QT_CONFIG_DIR=%%B"
+    if /I "%%A"=="CMAKE_PREFIX_PATH:PATH" if not defined QT_PREFIX_DIR set "QT_PREFIX_DIR=%%B"
+    if /I "%%A"=="CMAKE_PREFIX_PATH:UNINITIALIZED" if not defined QT_PREFIX_DIR set "QT_PREFIX_DIR=%%B"
 )
-if not defined QT_CONFIG_DIR goto :eof
+if defined QT_CONFIG_DIR (
+    call :normalize_qt_dir "%QT_CONFIG_DIR%"
+    goto :eof
+)
+if defined QT_PREFIX_DIR call :normalize_qt_dir "%QT_PREFIX_DIR%"
+goto :eof
 
-set "KLOGG_QT_DIR=%QT_CONFIG_DIR%"
-set "KLOGG_QT_DIR=%KLOGG_QT_DIR:\lib\cmake\Qt6=%"
+:normalize_qt_dir
+set "QT_INPUT=%~1"
+set "KLOGG_QT_DIR=%QT_INPUT%"
+
+if exist "%QT_INPUT%\bin\windeployqt.exe" goto :eof
+if exist "%QT_INPUT%\bin" goto :eof
+
+set "KLOGG_QT_DIR=%QT_INPUT:\lib\cmake\Qt6=%"
 set "KLOGG_QT_DIR=%KLOGG_QT_DIR:\lib\cmake\Qt5=%"
+if exist "%KLOGG_QT_DIR%\bin\windeployqt.exe" goto :eof
+if exist "%QT_INPUT%\..\..\..\bin\windeployqt.exe" (
+    for %%I in ("%QT_INPUT%\..\..\..") do set "KLOGG_QT_DIR=%%~fI"
+)
 goto :eof
 
 :detect_cmake_generator
@@ -225,8 +284,8 @@ if /I "%KLOGG_ARCH%"=="x64" (
     set "SSL_EXPECTED_DLL=libcrypto-1_1.dll"
 )
 
-if exist "%KLOGG_WORKSPACE%\openssl-1.1\%SSL_ARCH_DIR%\bin\%SSL_EXPECTED_DLL%" (
-    set "SSL_DIR=%KLOGG_WORKSPACE%\openssl-1.1\%SSL_ARCH_DIR%\bin"
+if exist "%KLOGG_WORKSPACE%\packaging\windows\openssl-1.1\%SSL_ARCH_DIR%\bin\%SSL_EXPECTED_DLL%" (
+    set "SSL_DIR=%KLOGG_WORKSPACE%\packaging\windows\openssl-1.1\%SSL_ARCH_DIR%\bin"
 )
 goto :eof
 
@@ -249,63 +308,5 @@ if exist "%ProgramFiles(x86)%\7-Zip\7z.exe" (
 for /f "delims=" %%I in ('where 7z.exe 2^>nul') do (
     set "SEVENZIP_EXE=%%I"
     goto :eof
-)
-goto :eof
-
-:detect_makensis
-if defined MAKENSIS_EXE goto :eof
-if defined KLOGG_MAKENSIS_EXE (
-    if exist "%KLOGG_MAKENSIS_EXE%" (
-        set "MAKENSIS_EXE=%KLOGG_MAKENSIS_EXE%"
-        goto :eof
-    )
-)
-if exist "%ProgramFiles%\NSIS\makensis.exe" (
-    set "MAKENSIS_EXE=%ProgramFiles%\NSIS\makensis.exe"
-    goto :eof
-)
-if exist "%ProgramFiles(x86)%\NSIS\makensis.exe" (
-    set "MAKENSIS_EXE=%ProgramFiles(x86)%\NSIS\makensis.exe"
-    goto :eof
-)
-for /f "delims=" %%I in ('where makensis.exe 2^>nul') do (
-    set "MAKENSIS_EXE=%%I"
-    goto :eof
-)
-goto :eof
-
-:build_installer
-call :detect_makensis
-if not defined MAKENSIS_EXE (
-    echo makensis.exe not found. Skipping installer build.
-    goto :eof
-)
-
-echo Using NSIS from "%MAKENSIS_EXE%".
-echo Building NSIS installer...
-"%MAKENSIS_EXE%" /DVERSION=%KLOGG_VERSION% /DPLATFORM=%KLOGG_ARCH% /DQT_MAJOR=%KLOGG_QT% "%KLOGG_WORKSPACE%\klogg.nsi"
-if errorlevel 1 exit /b 1
-goto :eof
-
-:collect_packages
-if not exist "%PACKAGES_DIR%" mkdir "%PACKAGES_DIR%"
-
-echo Collecting packages into "%PACKAGES_DIR%"...
-if exist "%PORTABLE_ZIP%" (
-    copy /Y "%PORTABLE_ZIP%" "%PACKAGES_DIR%\klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-portable.zip" >nul
-) else (
-    echo Warning: Missing "%PORTABLE_ZIP%"
-)
-
-if exist "%PDB_ZIP%" (
-    copy /Y "%PDB_ZIP%" "%PACKAGES_DIR%\klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-pdb.zip" >nul
-) else (
-    echo Warning: Missing "%PDB_ZIP%"
-)
-
-if exist "%SETUP_EXE%" (
-    copy /Y "%SETUP_EXE%" "%PACKAGES_DIR%\klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-setup.exe" >nul
-) else (
-    echo Warning: Missing "%SETUP_EXE%"
 )
 goto :eof

@@ -13,12 +13,20 @@
     !define QT_MAJOR 'Qt5'
 !endif
 
+!ifndef STAGE_DIR
+    !define STAGE_DIR 'release'
+!endif
+
+!ifndef OUTPUT_DIR
+    !define OUTPUT_DIR '.'
+!endif
+
 # Headers
 !include "MUI2.nsh"
 !include "FileAssociation.nsh"
 
 # General
-OutFile "klogg-${VERSION}-${PLATFORM}-${QT_MAJOR}-setup.exe"
+OutFile "${OUTPUT_DIR}\klogg-${VERSION}-${PLATFORM}-${QT_MAJOR}-setup.exe"
 
 XpStyle on
 
@@ -70,20 +78,20 @@ Section "klogg" klogg
     SectionIn RO
 
     SetOutPath $INSTDIR
-    File release\klogg.exe
-    File /nonfatal release\klogg_crashpad_handler.exe
-    File /nonfatal release\klogg_minidump_dump.exe
-    File release\tbb12.dll
-    File /nonfatal release\tbbmalloc.dll
-    File /nonfatal release\tbbmalloc_proxy.dll
-    File /nonfatal release\D3Dcompiler_47.dll
-    File /nonfatal release\opengl32sw.dll
+    File "${STAGE_DIR}\klogg.exe"
+    File /nonfatal "${STAGE_DIR}\klogg_crashpad_handler.exe"
+    File /nonfatal "${STAGE_DIR}\klogg_minidump_dump.exe"
+    File "${STAGE_DIR}\tbb12.dll"
+    File /nonfatal "${STAGE_DIR}\tbbmalloc.dll"
+    File /nonfatal "${STAGE_DIR}\tbbmalloc_proxy.dll"
+    File /nonfatal "${STAGE_DIR}\D3Dcompiler_47.dll"
+    File /nonfatal "${STAGE_DIR}\opengl32sw.dll"
 
-    File COPYING
-    File NOTICE
-    File README.md
-    File DOCUMENTATION.md
-    File /nonfatal release\documentation.html
+    File "${STAGE_DIR}\COPYING"
+    File "${STAGE_DIR}\NOTICE"
+    File "${STAGE_DIR}\README.md"
+    File "${STAGE_DIR}\DOCUMENTATION.md"
+    File /nonfatal "${STAGE_DIR}\documentation.html"
 
     ; Create the 'sendto' link
     CreateShortCut "$SENDTO\klogg.lnk" "$INSTDIR\klogg.exe" "" "$INSTDIR\klogg.exe" 0
@@ -114,66 +122,66 @@ SectionEnd
 
 Section "Qt Runtime libraries" qtlibs
     SetOutPath $INSTDIR
-    File release\${QT_MAJOR}Core.dll
-    File release\${QT_MAJOR}Gui.dll
-    File release\${QT_MAJOR}Network.dll
-    File release\${QT_MAJOR}Widgets.dll
-!if /FileExists "release\${QT_MAJOR}Concurrent.dll"
-    File /nonfatal release\${QT_MAJOR}Concurrent.dll
+    File "${STAGE_DIR}\${QT_MAJOR}Core.dll"
+    File "${STAGE_DIR}\${QT_MAJOR}Gui.dll"
+    File "${STAGE_DIR}\${QT_MAJOR}Network.dll"
+    File "${STAGE_DIR}\${QT_MAJOR}Widgets.dll"
+!if /FileExists "${STAGE_DIR}\${QT_MAJOR}Concurrent.dll"
+    File /nonfatal "${STAGE_DIR}\${QT_MAJOR}Concurrent.dll"
 !endif
-    File release\${QT_MAJOR}Xml.dll
+    File "${STAGE_DIR}\${QT_MAJOR}Xml.dll"
 !if ${QT_MAJOR} == "Qt6"
-    File release\${QT_MAJOR}Core5Compat.dll
-    File /nonfatal release\${QT_MAJOR}Svg.dll
+    File "${STAGE_DIR}\${QT_MAJOR}Core5Compat.dll"
+    File /nonfatal "${STAGE_DIR}\${QT_MAJOR}Svg.dll"
 !endif
-    File /nonfatal release\icu*.dll
-    File /nonfatal release\concrt140.dll
+    File /nonfatal "${STAGE_DIR}\icu*.dll"
+    File /nonfatal "${STAGE_DIR}\concrt140.dll"
 
     SetOutPath $INSTDIR\platforms
-    File release\platforms\qwindows.dll
+    File "${STAGE_DIR}\platforms\qwindows.dll"
     SetOutPath $INSTDIR\generic
-    File /nonfatal /r release\generic\*.dll
+    File /nonfatal /r "${STAGE_DIR}\generic\*.dll"
     SetOutPath $INSTDIR\iconengines
-    File /nonfatal /r release\iconengines\*.dll
+    File /nonfatal /r "${STAGE_DIR}\iconengines\*.dll"
     SetOutPath $INSTDIR\imageformats
-    File /nonfatal /r release\imageformats\*.dll
+    File /nonfatal /r "${STAGE_DIR}\imageformats\*.dll"
     SetOutPath $INSTDIR\networkinformation
-    File /nonfatal /r release\networkinformation\*.dll
+    File /nonfatal /r "${STAGE_DIR}\networkinformation\*.dll"
     SetOutPath $INSTDIR\styles
 !if ${QT_MAJOR} == "Qt6"
-    File release\styles\qmodernwindowsstyle.dll
+    File "${STAGE_DIR}\styles\qmodernwindowsstyle.dll"
 !else
-    File release\styles\qwindowsvistastyle.dll
+    File "${STAGE_DIR}\styles\qwindowsvistastyle.dll"
 !endif
     SetOutPath $INSTDIR\tls
-    File /nonfatal /r release\tls\*.dll
+    File /nonfatal /r "${STAGE_DIR}\tls\*.dll"
     SetOutPath $INSTDIR\translations
-    File /nonfatal /r release\translations\*.qm
+    File /nonfatal /r "${STAGE_DIR}\translations\*.qm"
 
 SectionEnd
 
 Section "MSVC Runtime libraries" vcruntime
     SetOutPath $INSTDIR
-    File /nonfatal release\msvcp140.dll
-    File /nonfatal release\msvcp140_1.dll
-    File /nonfatal release\msvcp140_2.dll
-    File /nonfatal release\vcruntime140.dll
+    File /nonfatal "${STAGE_DIR}\msvcp140.dll"
+    File /nonfatal "${STAGE_DIR}\msvcp140_1.dll"
+    File /nonfatal "${STAGE_DIR}\msvcp140_2.dll"
+    File /nonfatal "${STAGE_DIR}\vcruntime140.dll"
     
 !if ${PLATFORM} == "x64"
-    File /nonfatal release\vcruntime140_1.dll
+    File /nonfatal "${STAGE_DIR}\vcruntime140_1.dll"
 
-!if /FileExists "release\libcrypto-1_1-x64.dll"
-    File /nonfatal release\libcrypto-1_1-x64.dll
+!if /FileExists "${STAGE_DIR}\libcrypto-1_1-x64.dll"
+    File /nonfatal "${STAGE_DIR}\libcrypto-1_1-x64.dll"
 !endif
-!if /FileExists "release\libssl-1_1-x64.dll"
-    File /nonfatal release\libssl-1_1-x64.dll
+!if /FileExists "${STAGE_DIR}\libssl-1_1-x64.dll"
+    File /nonfatal "${STAGE_DIR}\libssl-1_1-x64.dll"
 !endif
 !else
-!if /FileExists "release\libcrypto-1_1.dll"
-    File /nonfatal release\libcrypto-1_1.dll
+!if /FileExists "${STAGE_DIR}\libcrypto-1_1.dll"
+    File /nonfatal "${STAGE_DIR}\libcrypto-1_1.dll"
 !endif
-!if /FileExists "release\libssl-1_1.dll"
-    File /nonfatal release\libssl-1_1.dll
+!if /FileExists "${STAGE_DIR}\libssl-1_1.dll"
+    File /nonfatal "${STAGE_DIR}\libssl-1_1.dll"
 !endif
 !endif
 
