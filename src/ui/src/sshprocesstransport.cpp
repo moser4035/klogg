@@ -14,6 +14,10 @@ QString shellQuote( const QString& value )
 
 QString remoteTailCommand( const RemoteLogLaunchRequest& request )
 {
+    if ( request.fullLogFile ) {
+        return QString( "tail -n +1 -F %1" ).arg( shellQuote( request.remotePath.trimmed() ) );
+    }
+
     return QString( "tail -n %1 -F %2" )
         .arg( request.initialLines )
         .arg( shellQuote( request.remotePath.trimmed() ) );

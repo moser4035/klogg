@@ -118,6 +118,7 @@ void RemoteLogSettings::saveToStorage( QSettings& settings ) const
         settings.setValue( "authMode", authModeToString( target.authMode ) );
         settings.setValue( "toolKind", toolKindToString( target.toolKind ) );
         settings.setValue( "toolPath", target.toolPath );
+        settings.setValue( "fullLogFile", target.fullLogFile );
         settings.setValue( "initialLines", target.initialLines );
     }
     settings.endArray();
@@ -153,6 +154,7 @@ void RemoteLogSettings::retrieveFromStorage( QSettings& settings )
             profile.authMode = authModeFromString( settings.value( "authMode" ).toString() );
             profile.toolKind = toolKindFromString( settings.value( "toolKind" ).toString() );
             profile.toolPath = settings.value( "toolPath" ).toString();
+            profile.fullLogFile = settings.value( "fullLogFile", true ).toBool();
             profile.initialLines
                 = settings.value( "initialLines", defaultInitialLines_ ).toInt();
             if ( profile.isValid() ) {

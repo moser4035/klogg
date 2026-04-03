@@ -229,7 +229,6 @@ QString RemoteLogSession::statusText() const
 void RemoteLogSession::handleStarted()
 {
     runningTimer_.start();
-    setState( RemoteLogSessionState::Running );
     Q_EMIT started();
 }
 
@@ -237,6 +236,9 @@ void RemoteLogSession::handleReadyReadStandardOutput()
 {
     const auto payload = process_.readAllStandardOutput();
     if ( !payload.isEmpty() ) {
+        if ( state_ == RemoteLogSessionState::Starting ) {
+            setState( RemoteLogSessionState::Running );
+        }
         hasDeliveredRemoteData_ = true;
         mirrorFile_.write( payload );
         mirrorFile_.flush();

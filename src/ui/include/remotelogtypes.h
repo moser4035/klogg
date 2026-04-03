@@ -30,6 +30,7 @@ struct RemoteLogProfile {
     RemoteLogAuthMode authMode = RemoteLogAuthMode::KeyAgent;
     RemoteLogToolKind toolKind = RemoteLogToolKind::Auto;
     QString toolPath;
+    bool fullLogFile = true;
     int initialLines = 2000;
 
     [[nodiscard]] bool isValid() const

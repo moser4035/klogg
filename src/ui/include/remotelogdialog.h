@@ -9,6 +9,7 @@
 
 class QComboBox;
 class QDialogButtonBox;
+class QCheckBox;
 class QLineEdit;
 class QPushButton;
 class QSpinBox;
@@ -26,6 +27,7 @@ class RemoteLogDialog : public QDialog {
   private Q_SLOTS:
     void updateFromRecentSelection( int index );
     void updateAuthUi();
+    void updateInitialLinesUi();
     void removeSelectedRecentTarget();
     void clearRecentTargets();
     void validateAndAccept();
@@ -46,6 +48,7 @@ class RemoteLogDialog : public QDialog {
     QLineEdit* remotePathEdit_ = nullptr;
     QComboBox* authModeCombo_ = nullptr;
     QLineEdit* passwordEdit_ = nullptr;
+    QCheckBox* fullLogFileCheckBox_ = nullptr;
     QSpinBox* initialLinesSpin_ = nullptr;
     QComboBox* toolKindCombo_ = nullptr;
     QLineEdit* toolPathEdit_ = nullptr;

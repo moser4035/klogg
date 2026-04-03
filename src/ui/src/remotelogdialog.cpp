@@ -1,5 +1,6 @@
 #include "remotelogdialog.h"
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -105,6 +106,10 @@ RemoteLogDialog::RemoteLogDialog( const std::vector<RemoteLogProfile>& recentTar
     passwordEdit_->setEchoMode( QLineEdit::Password );
     formLayout->addRow( tr( "Password" ), passwordEdit_ );
 
+    fullLogFileCheckBox_ = new QCheckBox( tr( "Full log file" ), this );
+    fullLogFileCheckBox_->setChecked( true );
+    formLayout->addRow( QString(), fullLogFileCheckBox_ );
+
     initialLinesSpin_ = new QSpinBox( this );
     initialLinesSpin_->setRange( 1, 1000000 );
     initialLinesSpin_->setValue( defaultInitialLines );
@@ -128,6 +133,7 @@ RemoteLogDialog::RemoteLogDialog( const std::vector<RemoteLogProfile>& recentTar
              &RemoteLogDialog::updateFromRecentSelection );
     connect( authModeCombo_, QOverload<int>::of( &QComboBox::currentIndexChanged ), this,
              &RemoteLogDialog::updateAuthUi );
+    connect( fullLogFileCheckBox_, &QCheckBox::toggled, this, &RemoteLogDialog::updateInitialLinesUi );
     connect( removeRecentTargetButton_, &QPushButton::clicked, this,
              &RemoteLogDialog::removeSelectedRecentTarget );
     connect( clearRecentTargetsButton_, &QPushButton::clicked, this,
@@ -137,6 +143,7 @@ RemoteLogDialog::RemoteLogDialog( const std::vector<RemoteLogProfile>& recentTar
 
     refreshRecentTargets();
     updateAuthUi();
+    updateInitialLinesUi();
 }
 
 RemoteLogLaunchRequest RemoteLogDialog::request() const
@@ -149,6 +156,7 @@ RemoteLogLaunchRequest RemoteLogDialog::request() const
     request.remotePath = remotePathEdit_->text().trimmed();
     request.authMode = authModeFromIndex( authModeCombo_->currentIndex() );
     request.password = passwordEdit_->text();
+    request.fullLogFile = fullLogFileCheckBox_->isChecked();
     request.initialLines = initialLinesSpin_->value();
     request.toolKind = toolKindFromIndex( toolKindCombo_->currentIndex() );
     request.toolPath = toolPathEdit_->text().trimmed();
@@ -174,6 +182,7 @@ void RemoteLogDialog::applyProfile( const RemoteLogProfile& profile )
     userEdit_->setText( profile.user );
     remotePathEdit_->setText( profile.remotePath );
     authModeCombo_->setCurrentIndex( authModeIndex( profile.authMode ) );
+    fullLogFileCheckBox_->setChecked( profile.fullLogFile );
     initialLinesSpin_->setValue( profile.initialLines );
     toolKindCombo_->setCurrentIndex( toolKindIndex( profile.toolKind ) );
     toolPathEdit_->setText( profile.toolPath );
@@ -184,6 +193,11 @@ void RemoteLogDialog::updateAuthUi()
     const auto passwordMode = authModeFromIndex( authModeCombo_->currentIndex() )
         == RemoteLogAuthMode::Password;
     passwordEdit_->setEnabled( passwordMode );
+}
+
+void RemoteLogDialog::updateInitialLinesUi()
+{
+    initialLinesSpin_->setEnabled( !fullLogFileCheckBox_->isChecked() );
 }
 
 void RemoteLogDialog::removeSelectedRecentTarget()
@@ -229,7 +243,8 @@ void RemoteLogDialog::refreshRecentTargets()
     recentTargetsCombo_->clear();
     recentTargetsCombo_->addItem( tr( "Custom target" ) );
     for ( const auto& target : recentTargets_ ) {
-        recentTargetsCombo_->addItem( target.title() + " (" + target.sourceLabel() + ")" );
+        const auto displayName = target.displayName.trimmed();
+        recentTargetsCombo_->addItem( displayName.isEmpty() ? tr( "(No display name)" ) : displayName );
     }
 
     const auto hasPreviousRecentSelection = previousSelection > 0 && previousSelection
