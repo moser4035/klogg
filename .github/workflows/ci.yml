@@ -52,7 +52,7 @@ jobs:
       KLOGG_DO_PACKAGE: 1
       KLOGG_CMAKE_OPTS: -DKLOGG_GENERIC_CPU=ON -DKLOGG_USE_SENTRY=ON -DKLOGG_OVERRIDE_MALLOC=OFF
       BOOST_ROOT: ${{ github.workspace }}\3rdparty\boost
-      BOOST_URL: https://sourceforge.net/projects/boost/files/boost/1.86.0/boost_1_86_0.tar.bz2/download
+      BOOST_URL: https://archives.boost.io/release/1.86.0/source/boost_1_86_0.zip
     steps:
       - uses: actions/checkout@v4
 
@@ -88,15 +88,14 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path $env:BOOST_ROOT -Force | Out-Null
-          Invoke-WebRequest -Uri $env:BOOST_URL -OutFile "$env:BOOST_ROOT\download.tar.bz2"
-          7z x "$env:BOOST_ROOT\download.tar.bz2" "-o$env:BOOST_ROOT" -y -bd
-          if (Test-Path "$env:BOOST_ROOT\download.tar") {
-            7z x "$env:BOOST_ROOT\download.tar" "-o$env:BOOST_ROOT" -y -bd
-          }
+          Invoke-WebRequest -Uri $env:BOOST_URL -OutFile "$env:BOOST_ROOT\download.zip"
+          7z x "$env:BOOST_ROOT\download.zip" "-o$env:BOOST_ROOT" -y -bd
           Copy-Item "$env:BOOST_ROOT\boost_*\\*" $env:BOOST_ROOT -Recurse -Force
+          if (-not (Test-Path "$env:BOOST_ROOT\boost")) {
+            throw "Boost headers were not extracted into $env:BOOST_ROOT"
+          }
           Remove-Item "$env:BOOST_ROOT\boost_*" -Recurse -Force
-          Remove-Item "$env:BOOST_ROOT\download.tar.bz2" -Force -ErrorAction SilentlyContinue
-          Remove-Item "$env:BOOST_ROOT\download.tar" -Force -ErrorAction SilentlyContinue
+          Remove-Item "$env:BOOST_ROOT\download.zip" -Force -ErrorAction SilentlyContinue
 
       - name: Cache OpenSSL
         id: cache-openssl
