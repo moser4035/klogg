@@ -1,6 +1,7 @@
 set(QAPPLICATION_CLASS QApplication)
 
 include(CPM)
+include(${CMAKE_SOURCE_DIR}/cmake/patch_kf5archive_qt611.cmake)
 
 set(_TMP_CPM_USE_LOCAL_PACKAGES ${CPM_USE_LOCAL_PACKAGES})
 
@@ -121,6 +122,9 @@ cpmaddpackage(
   EXCLUDE_FROM_ALL
   YES
 )
+if(KF5Archive_ADDED AND ${QT_VERSION_MAJOR} EQUAL 6)
+  klogg_patch_kf5archive_for_qt6_11(${KF5Archive_SOURCE_DIR})
+endif()
 if(NOT KF5Archive_ADDED)
   find_package(KF5Archive)
   add_library(klogg_karchive INTERFACE)

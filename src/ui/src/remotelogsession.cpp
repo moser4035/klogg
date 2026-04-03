@@ -5,6 +5,65 @@
 
 #include "sshprocesstransport.h"
 
+namespace {
+QString normalizeUiMessage( QString message )
+{
+    message.replace( '\n', ' ' );
+    return message.simplified();
+}
+
+QString summarizeRemoteIssue( const QString& text )
+{
+    const auto simplified = normalizeUiMessage( text );
+    const auto lowered = simplified.toLower();
+
+    if ( lowered.contains( "permission denied" )
+         || lowered.contains( "authentication failed" ) ) {
+        return RemoteLogSession::tr( "Authentication failed." );
+    }
+
+    if ( lowered.contains( "host key verification failed" ) ) {
+        return RemoteLogSession::tr( "Host key verification failed." );
+    }
+
+    if ( lowered.contains( "could not resolve hostname" )
+         || lowered.contains( "name or service not known" )
+         || lowered.contains( "no such host is known" ) ) {
+        return RemoteLogSession::tr( "Host could not be resolved." );
+    }
+
+    if ( lowered.contains( "connection refused" ) ) {
+        return RemoteLogSession::tr( "Connection was refused." );
+    }
+
+    if ( lowered.contains( "connection timed out" )
+         || lowered.contains( "operation timed out" ) ) {
+        return RemoteLogSession::tr( "Connection timed out." );
+    }
+
+    if ( lowered.contains( "no route to host" )
+         || lowered.contains( "host is unreachable" ) ) {
+        return RemoteLogSession::tr( "Host is unreachable." );
+    }
+
+    if ( lowered.contains( "connection closed" )
+         || lowered.contains( "closed by remote host" ) ) {
+        return RemoteLogSession::tr( "Connection was closed by the remote host." );
+    }
+
+    if ( lowered.contains( "command not found" )
+         || lowered.contains( "tail:" ) ) {
+        return RemoteLogSession::tr( "Remote log command failed." );
+    }
+
+    if ( lowered.contains( "process exited with code" ) ) {
+        return RemoteLogSession::tr( "Remote log process exited unexpectedly." );
+    }
+
+    return simplified;
+}
+} // namespace
+
 RemoteLogSession::RemoteLogSession( RemoteLogLaunchRequest request, QString mirrorPath,
                                     QString stderrPath, QString preferredToolPath,
                                     QObject* parent )
@@ -135,6 +194,19 @@ void RemoteLogSession::stop( bool cleanupFilesOnStop )
     }
 }
 
+bool RemoteLogSession::failedDuringInitialConnect() const
+{
+    if ( state_ != RemoteLogSessionState::Failed || explicitStopRequested_ ) {
+        return false;
+    }
+
+    if ( hasDeliveredRemoteData_ ) {
+        return false;
+    }
+
+    return !runningTimer_.isValid() || runningTimer_.elapsed() < 5000;
+}
+
 QString RemoteLogSession::statusText() const
 {
     switch ( state_ ) {
@@ -145,7 +217,10 @@ QString RemoteLogSession::statusText() const
     case RemoteLogSessionState::Stopped:
         return tr( "Remote: stopped %1" ).arg( request_.sourceLabel() );
     case RemoteLogSessionState::Failed:
-        return tr( "Remote: disconnected %1" ).arg( request_.sourceLabel() );
+        if ( uiMessage_.isEmpty() ) {
+            return tr( "Remote: disconnected %1" ).arg( request_.sourceLabel() );
+        }
+        return tr( "Remote: disconnected %1 (%2)" ).arg( request_.sourceLabel(), uiMessage_ );
     }
 
     return {};
@@ -153,6 +228,7 @@ QString RemoteLogSession::statusText() const
 
 void RemoteLogSession::handleStarted()
 {
+    runningTimer_.start();
     setState( RemoteLogSessionState::Running );
     Q_EMIT started();
 }
@@ -161,6 +237,7 @@ void RemoteLogSession::handleReadyReadStandardOutput()
 {
     const auto payload = process_.readAllStandardOutput();
     if ( !payload.isEmpty() ) {
+        hasDeliveredRemoteData_ = true;
         mirrorFile_.write( payload );
         mirrorFile_.flush();
     }
@@ -176,7 +253,10 @@ void RemoteLogSession::appendDiagnostics( const QString& text )
     stderrFile_.write( payload );
     stderrFile_.flush();
     diagnostics_ += text;
-    Q_EMIT warningsChanged( diagnostics_ );
+    const auto message = summarizeRemoteIssue( text );
+    if ( !message.isEmpty() ) {
+        setUiMessage( message );
+    }
 }
 
 void RemoteLogSession::handleReadyReadStandardError()
@@ -205,6 +285,9 @@ void RemoteLogSession::handleFinished( int exitCode, QProcess::ExitStatus exitSt
     }
     else {
         appendDiagnostics( tr( "\nProcess exited with code %1.\n" ).arg( exitCode ) );
+        if ( uiMessage_.isEmpty() ) {
+            setUiMessage( tr( "Remote log process exited with code %1." ).arg( exitCode ) );
+        }
         setState( RemoteLogSessionState::Failed );
     }
 
@@ -221,6 +304,17 @@ void RemoteLogSession::handleErrorOccurred( QProcess::ProcessError error )
     if ( state_ == RemoteLogSessionState::Starting || state_ == RemoteLogSessionState::Running ) {
         setState( RemoteLogSessionState::Failed );
     }
+}
+
+void RemoteLogSession::setUiMessage( const QString& message )
+{
+    const auto normalized = summarizeRemoteIssue( message );
+    if ( normalized.isEmpty() || uiMessage_ == normalized ) {
+        return;
+    }
+
+    uiMessage_ = normalized;
+    Q_EMIT warningsChanged( uiMessage_ );
 }
 
 void RemoteLogSession::setState( RemoteLogSessionState state )

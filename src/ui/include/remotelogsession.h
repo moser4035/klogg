@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QObject>
 #include <QProcess>
+#include <QElapsedTimer>
 
 #include "remotelogtypes.h"
 
@@ -50,10 +51,15 @@ class RemoteLogSession : public QObject {
     }
 
     [[nodiscard]] QString statusText() const;
+    [[nodiscard]] QString uiMessage() const
+    {
+        return uiMessage_;
+    }
     [[nodiscard]] QString diagnostics() const
     {
         return diagnostics_;
     }
+    [[nodiscard]] bool failedDuringInitialConnect() const;
 
   Q_SIGNALS:
     void started();
@@ -72,6 +78,7 @@ class RemoteLogSession : public QObject {
     void setState( RemoteLogSessionState state );
     bool prepareFiles( QString* errorMessage );
     void appendDiagnostics( const QString& text );
+    void setUiMessage( const QString& message );
     void cleanupFiles();
 
     RemoteLogLaunchRequest request_;
@@ -82,9 +89,12 @@ class RemoteLogSession : public QObject {
     QFile stderrFile_;
     QProcess process_;
     RemoteLogSessionState state_ = RemoteLogSessionState::Starting;
+    QString uiMessage_;
     QString diagnostics_;
     bool explicitStopRequested_ = false;
     bool cleanupRequested_ = false;
+    bool hasDeliveredRemoteData_ = false;
+    QElapsedTimer runningTimer_;
 };
 
 #endif

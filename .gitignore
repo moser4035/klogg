@@ -58,6 +58,7 @@ compile_commands.json
 # Qt-specific
 /.moc
 /.qmake.stash
+/build_debug_local.cmd
 
 # VS-specific
 /.vs

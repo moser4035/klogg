@@ -62,6 +62,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
+#include <QHBoxLayout>
 #include <QListView>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -73,6 +74,7 @@
 #include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QStatusBar>
+#include <QStringList>
 #include <QStringListModel>
 #include <QTemporaryFile>
 #include <QTextBrowser>
@@ -112,6 +114,78 @@
 #include "tabbedcrawlerwidget.h"
 
 namespace {
+
+QString remoteTooltipText( const RemoteLogSession* remoteSession )
+{
+    QStringList lines;
+    lines << remoteSession->sourceLabel() << remoteSession->statusText();
+
+    if ( !remoteSession->uiMessage().isEmpty() ) {
+        lines << QObject::tr( "Issue: %1" ).arg( remoteSession->uiMessage() );
+    }
+
+    if ( !remoteSession->diagnostics().trimmed().isEmpty() ) {
+        lines << remoteSession->diagnostics().trimmed();
+    }
+
+    return lines.join( '\n' );
+}
+
+QString remoteToolbarText( const RemoteLogSession* remoteSession )
+{
+    switch ( remoteSession->state() ) {
+    case RemoteLogSessionState::Starting:
+        return QObject::tr( "Connecting" );
+    case RemoteLogSessionState::Running:
+        return QObject::tr( "Connected" );
+    case RemoteLogSessionState::Stopped:
+        return QObject::tr( "Stopped" );
+    case RemoteLogSessionState::Failed:
+        return QObject::tr( "Disconnected" );
+    }
+
+    return {};
+}
+
+QString remoteStatusStyleSheet( RemoteLogSessionState state )
+{
+    switch ( state ) {
+    case RemoteLogSessionState::Failed:
+        return QStringLiteral( "QLabel { color: #b00020; font-weight: 600; }" );
+    case RemoteLogSessionState::Starting:
+        return QStringLiteral( "QLabel { color: #8a6d1d; font-weight: 600; }" );
+    case RemoteLogSessionState::Running:
+        return QStringLiteral( "QLabel { color: #2e7d32; font-weight: 600; }" );
+    case RemoteLogSessionState::Stopped:
+        return QStringLiteral( "QLabel { color: palette(window-text); font-weight: 600; }" );
+    }
+
+    return {};
+}
+
+QString remoteIndicatorStyleSheet( RemoteLogSessionState state )
+{
+    QString color = QStringLiteral( "#9e9e9e" );
+
+    switch ( state ) {
+    case RemoteLogSessionState::Failed:
+        color = QStringLiteral( "#b00020" );
+        break;
+    case RemoteLogSessionState::Starting:
+        color = QStringLiteral( "#c58b00" );
+        break;
+    case RemoteLogSessionState::Running:
+        color = QStringLiteral( "#2e7d32" );
+        break;
+    case RemoteLogSessionState::Stopped:
+        color = QStringLiteral( "#757575" );
+        break;
+    }
+
+    return QStringLiteral(
+               "QLabel { color: %1; min-width: 12px; max-width: 12px; font-size: 18px; }" )
+        .arg( color );
+}
 
 void signalCrawlerToFollowFile( CrawlerWidget* crawler_widget )
 {
@@ -863,9 +937,20 @@ void MainWindow::createToolBars()
     encodingField = new QLabel();
     dateField->setAlignment( Qt::AlignHCenter | Qt::AlignVCenter );
 
-    remoteStateField = new QLabel();
+    remoteStateWidget = new QWidget();
+    auto* remoteStateLayout = new QHBoxLayout( remoteStateWidget );
+    remoteStateLayout->setContentsMargins( 0, 0, 0, 0 );
+    remoteStateLayout->setSpacing( 4 );
+
+    remoteStateIndicator = new QLabel( QStringLiteral( "\xE2\x97\x8F" ), remoteStateWidget );
+    remoteStateIndicator->setAlignment( Qt::AlignHCenter | Qt::AlignVCenter );
+
+    remoteStateField = new QLabel( remoteStateWidget );
     remoteStateField->setAlignment( Qt::AlignHCenter | Qt::AlignVCenter );
-    remoteStateField->hide();
+    remoteStateField->setContentsMargins( 0, 0, 4, 0 );
+    remoteStateLayout->addWidget( remoteStateIndicator );
+    remoteStateLayout->addWidget( remoteStateField );
+    remoteStateWidget->setSizePolicy( QSizePolicy::Maximum, QSizePolicy::Preferred );
 
     lineNbField = new QLabel();
     lineNbField->setAlignment( Qt::AlignRight | Qt::AlignVCenter );
@@ -889,7 +974,8 @@ void MainWindow::createToolBars()
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
     toolBar->addWidget( dateField );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
-    toolBar->addWidget( remoteStateField );
+    remoteStateAction = toolBar->addWidget( remoteStateWidget );
+    remoteStateAction->setVisible( false );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
     toolBar->addWidget( encodingField );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
@@ -1212,6 +1298,13 @@ bool MainWindow::openRemoteLog( const RemoteLogLaunchRequest& request )
                  if ( remoteLogManager_.isManagedMirrorPath( mirrorPath ) ) {
                      updateRemoteSessionPresentation( mirrorPath );
                      updateRemoteSessionStatus();
+                     showRemoteConnectFailureDialog(
+                         remoteLogManager_.sessionForMirrorPath( mirrorPath ) );
+                     if ( currentCrawlerWidget() != nullptr
+                          && session_.getFilename( currentCrawlerWidget() ) == mirrorPath ) {
+                         showRemoteSessionStatusMessage(
+                             remoteLogManager_.sessionForMirrorPath( mirrorPath ) );
+                     }
                  }
              } );
 
@@ -1226,7 +1319,7 @@ bool MainWindow::openRemoteLog( const RemoteLogLaunchRequest& request )
 
                  if ( currentCrawlerWidget() != nullptr
                       && session_.getFilename( currentCrawlerWidget() ) == remoteSession->mirrorPath() ) {
-                     statusBar()->showMessage( warnings.simplified(), 5000 );
+                     showRemoteSessionStatusMessage( remoteSession );
                  }
              } );
 
@@ -1501,6 +1594,7 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
 
         infoLine->hideGauge();
         showInfoLabels( true );
+        updateRemoteSessionStatus();
         stopAction->setEnabled( false );
         reloadAction->setEnabled( true );
 
@@ -1550,6 +1644,7 @@ void MainWindow::closeTab( int index, ActionInitiator initiator )
     }
 
     if ( isManagedRemoteFile( fileName ) ) {
+        remoteConnectFailureDialogsShown_.remove( fileName );
         remoteLogManager_.closeSession( fileName, true );
     }
 
@@ -1974,32 +2069,92 @@ void MainWindow::updateRemoteSessionPresentation( const QString& fileName )
         return;
     }
 
-    const auto toolTip = remoteSession->sourceLabel()
-        + "\n" + remoteSession->statusText()
-        + ( remoteSession->diagnostics().isEmpty() ? QString{}
-                                                   : "\n" + remoteSession->diagnostics().trimmed() );
+    const auto toolTip = remoteTooltipText( remoteSession );
     mainTabWidget_.setTabPresentation( fileName, remoteSession->tabLabel(), toolTip );
+}
+
+void MainWindow::resetRemoteSessionStatus()
+{
+    remoteStateField->clear();
+    remoteStateField->setStyleSheet( QString{} );
+    remoteStateField->setToolTip( QString{} );
+    remoteStateIndicator->setStyleSheet( QString{} );
+    remoteStateIndicator->setToolTip( QString{} );
+    remoteStateWidget->setToolTip( QString{} );
+    if ( remoteStateAction != nullptr ) {
+        remoteStateAction->setVisible( false );
+    }
 }
 
 void MainWindow::updateRemoteSessionStatus()
 {
     auto* crawler = currentCrawlerWidget();
     if ( crawler == nullptr ) {
-        remoteStateField->clear();
-        remoteStateField->hide();
+        resetRemoteSessionStatus();
         return;
     }
 
     auto* remoteSession = remoteLogManager_.sessionForMirrorPath( session_.getFilename( crawler ) );
     if ( remoteSession == nullptr ) {
-        remoteStateField->clear();
-        remoteStateField->hide();
+        resetRemoteSessionStatus();
         return;
     }
 
-    remoteStateField->setText( remoteSession->statusText() );
-    remoteStateField->setToolTip( remoteSession->diagnostics() );
-    remoteStateField->show();
+    const auto toolTip = remoteTooltipText( remoteSession );
+
+    remoteStateIndicator->setText( QString( QChar( 0x25CF ) ) );
+    remoteStateIndicator->setStyleSheet( remoteIndicatorStyleSheet( remoteSession->state() ) );
+    remoteStateIndicator->setToolTip( toolTip );
+    remoteStateField->setText( remoteToolbarText( remoteSession ) );
+    remoteStateField->setToolTip( toolTip );
+    remoteStateField->setStyleSheet( remoteStatusStyleSheet( remoteSession->state() ) );
+    remoteStateWidget->setToolTip( toolTip );
+    if ( remoteStateAction != nullptr ) {
+        remoteStateAction->setVisible( true );
+    }
+}
+
+void MainWindow::showRemoteConnectFailureDialog( const RemoteLogSession* remoteSession )
+{
+    if ( remoteSession == nullptr || !remoteSession->failedDuringInitialConnect() ) {
+        return;
+    }
+
+    const auto mirrorPath = remoteSession->mirrorPath();
+    if ( remoteConnectFailureDialogsShown_.contains( mirrorPath ) ) {
+        return;
+    }
+
+    remoteConnectFailureDialogsShown_.insert( mirrorPath );
+
+    QMessageBox messageBox( QMessageBox::Critical, tr( "Open Remote Log" ),
+                            remoteSession->uiMessage().isEmpty()
+                                ? tr( "Failed to connect to the remote log session." )
+                                : remoteSession->uiMessage(),
+                            QMessageBox::Ok, this );
+    messageBox.setInformativeText( remoteSession->sourceLabel() );
+
+    const auto diagnostics = remoteSession->diagnostics().trimmed();
+    if ( !diagnostics.isEmpty() ) {
+        messageBox.setDetailedText( diagnostics );
+    }
+
+    messageBox.exec();
+}
+
+void MainWindow::showRemoteSessionStatusMessage( const RemoteLogSession* remoteSession )
+{
+    if ( remoteSession == nullptr ) {
+        return;
+    }
+
+    const auto message
+        = remoteSession->uiMessage().isEmpty() ? remoteSession->statusText() : remoteSession->uiMessage();
+    if ( message.isEmpty() ) {
+        return;
+    }
+
+    statusBar()->showMessage( message, 5000 );
 }
 
 // Updates the actions for the recent files.
@@ -2343,7 +2498,7 @@ void MainWindow::showInfoLabels( bool show )
     if ( !show ) {
         sizeField->clear();
         dateField->clear();
-        remoteStateField->clear();
+        resetRemoteSessionStatus();
         encodingField->clear();
         lineNbField->clear();
     }

@@ -41,6 +41,7 @@
 
 #include <QMainWindow>
 #include <QMenu>
+#include <QSet>
 #include <QSystemTrayIcon>
 #include <QTemporaryDir>
 
@@ -225,6 +226,9 @@ class MainWindow : public QMainWindow {
     bool isManagedRemoteFile( const QString& fileName ) const;
     void updateRemoteSessionPresentation( const QString& fileName );
     void updateRemoteSessionStatus();
+    void showRemoteSessionStatusMessage( const RemoteLogSession* remoteSession );
+    void showRemoteConnectFailureDialog( const RemoteLogSession* remoteSession );
+    void resetRemoteSessionStatus();
 
     WindowSession session_;
     QString loadingFileName;
@@ -247,7 +251,10 @@ class MainWindow : public QMainWindow {
     QLabel* sizeField;
     QLabel* dateField;
     QLabel* encodingField;
+    QWidget* remoteStateWidget;
+    QLabel* remoteStateIndicator;
     QLabel* remoteStateField;
+    QAction* remoteStateAction;
     std::vector<QAction*> infoToolbarSeparators;
 
     QToolBar* toolBar;
@@ -323,6 +330,7 @@ class MainWindow : public QMainWindow {
 
     QTemporaryDir tempDir_;
     RemoteLogManager remoteLogManager_;
+    QSet<QString> remoteConnectFailureDialogsShown_;
 
     bool isMaximized_ = false;
     bool isCloseFromTray_ = false;
