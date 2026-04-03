@@ -31,6 +31,18 @@ release/
 object_script.glogg.Debug
 object_script.glogg.Release
 
+# Release build
+build_release/
+build_release*/
+*setup.exe
+*portable.zip
+*pdb.zip
+release/
+
+# Windows release packaging artifacts copied to repo root
+/FileAssociation.nsh
+/klogg.nsi
+/chocolately/
 
 build_root/
 build_root_clang/
@@ -38,6 +50,7 @@ build_root_gcc/
 build_root_qt5/
 build_root_qt6/
 test_data/
+cpm_cache/
 
 compile_commands.json
 

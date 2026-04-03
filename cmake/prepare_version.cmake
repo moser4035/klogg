@@ -93,7 +93,8 @@ generate_product_version(
 
 add_custom_target(
   generate_version ALL
-  COMMAND ${CMAKE_COMMAND} -DBUILD_VERSION=${PROJECT_VERSION}.${PROJECT_VERSION_TWEAK} -P
+  COMMAND ${CMAKE_COMMAND} -DBUILD_VERSION=${BUILD_VERSION}
+          -DPROJECT_HOMEPAGE_URL=${PROJECT_HOMEPAGE_URL} -P
           ${CMAKE_SOURCE_DIR}/cmake/generate_version_h.cmake
   DEPENDS ${ProductVersionResourceFiles}
   SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_version_h.cmake

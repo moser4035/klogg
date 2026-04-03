@@ -43,7 +43,9 @@ int main( int argc, const char** argv )
 
     QFile file{ argv[ 1 ] };
 
-    file.open( QIODevice::Unbuffered | QIODevice::WriteOnly | QIODevice::Append );
+    if ( !file.open( QIODevice::Unbuffered | QIODevice::WriteOnly | QIODevice::Append ) ) {
+        return -1;
+    }
 
     if ( !file.isOpen() ) {
         return -1;
@@ -54,7 +56,9 @@ int main( int argc, const char** argv )
 
     if ( flag == WriteFileModification::Truncate ) {
         LOG_INFO << "Truncating file";
-        file.resize( 0 );
+        if ( !file.resize( 0 ) ) {
+            return -1;
+        }
     }
 
     if ( flag == WriteFileModification::StartWithPartialLineEnd ) {
@@ -85,7 +89,9 @@ int main( int argc, const char** argv )
 
     file.close();
 
-    file.open( QIODevice::Unbuffered | QIODevice::ReadOnly | QIODevice::Append );
+    if ( !file.open( QIODevice::Unbuffered | QIODevice::ReadOnly | QIODevice::Append ) ) {
+        return -1;
+    }
 
     LOG_INFO << "Write to " << argv[ 1 ] << " finished, size " << file.size();
 

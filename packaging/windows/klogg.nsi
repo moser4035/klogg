@@ -71,15 +71,19 @@ Section "klogg" klogg
 
     SetOutPath $INSTDIR
     File release\klogg.exe
-    File release\klogg_crashpad_handler.exe
-    File release\klogg_minidump_dump.exe
+    File /nonfatal release\klogg_crashpad_handler.exe
+    File /nonfatal release\klogg_minidump_dump.exe
     File release\tbb12.dll
+    File /nonfatal release\tbbmalloc.dll
+    File /nonfatal release\tbbmalloc_proxy.dll
+    File /nonfatal release\D3Dcompiler_47.dll
+    File /nonfatal release\opengl32sw.dll
 
     File COPYING
     File NOTICE
     File README.md
     File DOCUMENTATION.md
-    File release\documentation.html
+    File /nonfatal release\documentation.html
 
     ; Create the 'sendto' link
     CreateShortCut "$SENDTO\klogg.lnk" "$INSTDIR\klogg.exe" "" "$INSTDIR\klogg.exe" 0
@@ -114,37 +118,63 @@ Section "Qt Runtime libraries" qtlibs
     File release\${QT_MAJOR}Gui.dll
     File release\${QT_MAJOR}Network.dll
     File release\${QT_MAJOR}Widgets.dll
-    File release\${QT_MAJOR}Concurrent.dll
+!if /FileExists "release\${QT_MAJOR}Concurrent.dll"
+    File /nonfatal release\${QT_MAJOR}Concurrent.dll
+!endif
     File release\${QT_MAJOR}Xml.dll
 !if ${QT_MAJOR} == "Qt6"
     File release\${QT_MAJOR}Core5Compat.dll
+    File /nonfatal release\${QT_MAJOR}Svg.dll
 !endif
+    File /nonfatal release\icu*.dll
+    File /nonfatal release\concrt140.dll
 
     SetOutPath $INSTDIR\platforms
     File release\platforms\qwindows.dll
+    SetOutPath $INSTDIR\generic
+    File /nonfatal /r release\generic\*.dll
+    SetOutPath $INSTDIR\iconengines
+    File /nonfatal /r release\iconengines\*.dll
+    SetOutPath $INSTDIR\imageformats
+    File /nonfatal /r release\imageformats\*.dll
+    SetOutPath $INSTDIR\networkinformation
+    File /nonfatal /r release\networkinformation\*.dll
     SetOutPath $INSTDIR\styles
 !if ${QT_MAJOR} == "Qt6"
     File release\styles\qmodernwindowsstyle.dll
 !else
     File release\styles\qwindowsvistastyle.dll
 !endif
+    SetOutPath $INSTDIR\tls
+    File /nonfatal /r release\tls\*.dll
+    SetOutPath $INSTDIR\translations
+    File /nonfatal /r release\translations\*.qm
 
 SectionEnd
 
 Section "MSVC Runtime libraries" vcruntime
     SetOutPath $INSTDIR
-    File release\msvcp140.dll
-    File release\msvcp140_1.dll
-    File release\vcruntime140.dll
+    File /nonfatal release\msvcp140.dll
+    File /nonfatal release\msvcp140_1.dll
+    File /nonfatal release\msvcp140_2.dll
+    File /nonfatal release\vcruntime140.dll
     
 !if ${PLATFORM} == "x64"
-    File release\vcruntime140_1.dll
+    File /nonfatal release\vcruntime140_1.dll
 
-    File release\libcrypto-1_1-x64.dll
-    File release\libssl-1_1-x64.dll
+!if /FileExists "release\libcrypto-1_1-x64.dll"
+    File /nonfatal release\libcrypto-1_1-x64.dll
+!endif
+!if /FileExists "release\libssl-1_1-x64.dll"
+    File /nonfatal release\libssl-1_1-x64.dll
+!endif
 !else
-    File release\libcrypto-1_1.dll
-    File release\libssl-1_1.dll
+!if /FileExists "release\libcrypto-1_1.dll"
+    File /nonfatal release\libcrypto-1_1.dll
+!endif
+!if /FileExists "release\libssl-1_1.dll"
+    File /nonfatal release\libssl-1_1.dll
+!endif
 !endif
 
 SectionEnd
@@ -182,9 +212,12 @@ Section "Uninstall"
     Delete "$INSTDIR\readme.html"
     Delete "$INSTDIR\documentation.md"
     Delete "$INSTDIR\documentation.html"
+    Delete "$INSTDIR\D3Dcompiler_47.dll"
+    Delete "$INSTDIR\icuuc.dll"
     Delete "$INSTDIR\libstdc++-6.dll"
     Delete "$INSTDIR\libgcc_s_seh-1.dll"
     Delete "$INSTDIR\libgcc_s_dw2-1.dll"
+    Delete "$INSTDIR\concrt140.dll"
     Delete "$INSTDIR\Qt5Widgets.dll"
     Delete "$INSTDIR\Qt5Core.dll"
     Delete "$INSTDIR\Qt5Gui.dll"
@@ -203,8 +236,10 @@ Section "Uninstall"
     Delete "$INSTDIR\styles\qwindowsvistastyle.dll"
     Delete "$INSTDIR\msvcp140.dll"
     Delete "$INSTDIR\msvcp140_1.dll"
+    Delete "$INSTDIR\msvcp140_2.dll"
     Delete "$INSTDIR\vcruntime140.dll"
     Delete "$INSTDIR\vcruntime140_1.dll"
+    Delete "$INSTDIR\opengl32sw.dll"
     Delete "$INSTDIR\tbb12.dll"
     Delete "$INSTDIR\tbbmalloc.dll"
     Delete "$INSTDIR\tbbmalloc_proxy.dll"
