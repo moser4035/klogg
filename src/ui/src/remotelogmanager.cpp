@@ -76,8 +76,9 @@ void RemoteLogManager::closeSession( const QString& mirrorPath, bool cleanupFile
         return;
     }
 
+    connect( session, &RemoteLogSession::finished, session, &QObject::deleteLater,
+             Qt::UniqueConnection );
     session->stop( cleanupFiles );
-    session->deleteLater();
 }
 
 void RemoteLogManager::closeAllSessions()

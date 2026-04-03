@@ -84,11 +84,21 @@ RemoteLogSession::RemoteLogSession( RemoteLogLaunchRequest request, QString mirr
              QOverload<int, QProcess::ExitStatus>::of( &QProcess::finished ), this,
              &RemoteLogSession::handleFinished );
     connect( &process_, &QProcess::errorOccurred, this, &RemoteLogSession::handleErrorOccurred );
+    stopTimer_.setSingleShot( true );
+    connect( &stopTimer_, &QTimer::timeout, this, &RemoteLogSession::handleStopTimeout );
 }
 
 RemoteLogSession::~RemoteLogSession()
 {
-    stop( false );
+    stopTimer_.stop();
+
+    if ( process_.state() != QProcess::NotRunning ) {
+        process_.kill();
+        process_.waitForFinished( 100 );
+    }
+
+    mirrorFile_.close();
+    stderrFile_.close();
 }
 
 bool RemoteLogSession::prepareFiles( QString* errorMessage )
@@ -176,22 +186,20 @@ bool RemoteLogSession::start( QString* errorMessage )
 void RemoteLogSession::stop( bool cleanupFilesOnStop )
 {
     explicitStopRequested_ = true;
-    cleanupRequested_ = cleanupFilesOnStop;
+    cleanupRequested_ = cleanupRequested_ || cleanupFilesOnStop;
 
-    if ( process_.state() != QProcess::NotRunning ) {
-        process_.terminate();
-        if ( !process_.waitForFinished( 2000 ) ) {
-            process_.kill();
-            process_.waitForFinished( 2000 );
-        }
+    if ( stopFinalized_ ) {
+        return;
     }
 
-    mirrorFile_.close();
-    stderrFile_.close();
-
-    if ( cleanupRequested_ ) {
-        cleanupFiles();
+    if ( process_.state() == QProcess::NotRunning ) {
+        setState( RemoteLogSessionState::Stopped );
+        finalizeExplicitStop();
+        return;
     }
+
+    process_.terminate();
+    stopTimer_.start( 250 );
 }
 
 bool RemoteLogSession::failedDuringInitialConnect() const
@@ -271,16 +279,16 @@ void RemoteLogSession::handleFinished( int exitCode, QProcess::ExitStatus exitSt
     handleReadyReadStandardOutput();
     handleReadyReadStandardError();
 
-    mirrorFile_.flush();
-    stderrFile_.flush();
+    if ( mirrorFile_.isOpen() ) {
+        mirrorFile_.flush();
+    }
+    if ( stderrFile_.isOpen() ) {
+        stderrFile_.flush();
+    }
 
     if ( explicitStopRequested_ ) {
         setState( RemoteLogSessionState::Stopped );
-        if ( cleanupRequested_ ) {
-            mirrorFile_.close();
-            stderrFile_.close();
-            cleanupFiles();
-        }
+        finalizeExplicitStop();
     }
     else if ( exitStatus == QProcess::NormalExit && exitCode == 0 ) {
         setState( RemoteLogSessionState::Stopped );
@@ -305,6 +313,13 @@ void RemoteLogSession::handleErrorOccurred( QProcess::ProcessError error )
     appendDiagnostics( tr( "\nSSH process error: %1\n" ).arg( process_.errorString() ) );
     if ( state_ == RemoteLogSessionState::Starting || state_ == RemoteLogSessionState::Running ) {
         setState( RemoteLogSessionState::Failed );
+    }
+}
+
+void RemoteLogSession::handleStopTimeout()
+{
+    if ( process_.state() != QProcess::NotRunning ) {
+        process_.kill();
     }
 }
 
@@ -333,4 +348,22 @@ void RemoteLogSession::cleanupFiles()
 {
     QFile::remove( stderrPath_ );
     QFile::remove( mirrorPath_ );
+}
+
+void RemoteLogSession::finalizeExplicitStop()
+{
+    if ( stopFinalized_ ) {
+        return;
+    }
+
+    stopFinalized_ = true;
+    stopTimer_.stop();
+    mirrorFile_.close();
+    stderrFile_.close();
+
+    if ( cleanupRequested_ ) {
+        cleanupFiles();
+    }
+
+    Q_EMIT finished();
 }

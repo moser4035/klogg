@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QProcess>
 #include <QElapsedTimer>
+#include <QTimer>
 
 #include "remotelogtypes.h"
 
@@ -73,6 +74,7 @@ class RemoteLogSession : public QObject {
     void handleReadyReadStandardError();
     void handleFinished( int exitCode, QProcess::ExitStatus exitStatus );
     void handleErrorOccurred( QProcess::ProcessError error );
+    void handleStopTimeout();
 
   private:
     void setState( RemoteLogSessionState state );
@@ -80,6 +82,7 @@ class RemoteLogSession : public QObject {
     void appendDiagnostics( const QString& text );
     void setUiMessage( const QString& message );
     void cleanupFiles();
+    void finalizeExplicitStop();
 
     RemoteLogLaunchRequest request_;
     QString mirrorPath_;
@@ -93,8 +96,10 @@ class RemoteLogSession : public QObject {
     QString diagnostics_;
     bool explicitStopRequested_ = false;
     bool cleanupRequested_ = false;
+    bool stopFinalized_ = false;
     bool hasDeliveredRemoteData_ = false;
     QElapsedTimer runningTimer_;
+    QTimer stopTimer_;
 };
 
 #endif

@@ -44,6 +44,7 @@
 #include <QSet>
 #include <QSystemTrayIcon>
 #include <QTemporaryDir>
+#include <QTimer>
 
 #include <QTranslator>
 #include <array>
@@ -229,6 +230,8 @@ class MainWindow : public QMainWindow {
     void showRemoteSessionStatusMessage( const RemoteLogSession* remoteSession );
     void showRemoteConnectFailureDialog( const RemoteLogSession* remoteSession );
     void resetRemoteSessionStatus();
+    void cleanupRetiredCrawlerWidgets();
+    void retireClosedCrawlerWidget( CrawlerWidget* widget );
 
     WindowSession session_;
     QString loadingFileName;
@@ -331,6 +334,8 @@ class MainWindow : public QMainWindow {
     QTemporaryDir tempDir_;
     RemoteLogManager remoteLogManager_;
     QSet<QString> remoteConnectFailureDialogsShown_;
+    QTimer retiredCrawlerCleanupTimer_;
+    std::vector<CrawlerWidget*> retiredCrawlerWidgets_;
 
     bool isMaximized_ = false;
     bool isCloseFromTray_ = false;

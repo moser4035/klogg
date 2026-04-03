@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 goto :main
 
 :main
@@ -26,6 +26,7 @@ if not defined KLOGG_CMAKE_SOURCE_CACHE set "KLOGG_CMAKE_SOURCE_CACHE=%KLOGG_WOR
 if not defined KLOGG_DO_INSTALLER set "KLOGG_DO_INSTALLER=1"
 if not defined KLOGG_DO_PACKAGE set "KLOGG_DO_PACKAGE=1"
 if not defined KLOGG_CMAKE_OPTS set "KLOGG_CMAKE_OPTS=-DKLOGG_GENERIC_CPU=ON -DKLOGG_USE_SENTRY=ON -DKLOGG_OVERRIDE_MALLOC=OFF"
+if not defined KLOGG_CMAKE_WARN_DEV set "KLOGG_CMAKE_WARN_DEV=-Wno-dev"
 set "VSWHERE_EXE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 
 set "BUILD_DIR=%KLOGG_WORKSPACE%\%KLOGG_BUILD_ROOT%"
@@ -33,6 +34,10 @@ set "BUILD_DIR=%KLOGG_WORKSPACE%\%KLOGG_BUILD_ROOT%"
 if not defined BOOST_ROOT (
     if exist "%KLOGG_WORKSPACE%\3rdparty\boost" (
         set "BOOST_ROOT=%KLOGG_WORKSPACE%\3rdparty\boost"
+    ) else (
+        if exist "C:\Users\a20068B\boost_1_82_0" (
+            set "BOOST_ROOT=C:\Users\a20068B\boost_1_82_0"
+        )
     )
 )
 
@@ -58,74 +63,74 @@ if exist "%CACHE_FILE%" (
     )
 
     if defined CACHED_CMAKE_GENERATOR (
-        if /I not "%KLOGG_CMAKE_GENERATOR%"=="%CACHED_CMAKE_GENERATOR%" (
-            echo Error: Existing build directory "%BUILD_DIR%" uses generator "%CACHED_CMAKE_GENERATOR%".
+        if /I not "!KLOGG_CMAKE_GENERATOR!"=="!CACHED_CMAKE_GENERATOR!" (
+            echo Error: Existing build directory "%BUILD_DIR%" uses generator "!CACHED_CMAKE_GENERATOR!".
             echo Set KLOGG_BUILD_ROOT to a different directory or remove the existing CMake cache.
             exit /b 1
         )
-        if defined CACHED_CMAKE_GENERATOR_INSTANCE set "KLOGG_CMAKE_GENERATOR_INSTANCE=%CACHED_CMAKE_GENERATOR_INSTANCE%"
+        if defined CACHED_CMAKE_GENERATOR_INSTANCE set "KLOGG_CMAKE_GENERATOR_INSTANCE=!CACHED_CMAKE_GENERATOR_INSTANCE!"
     )
 
     if not defined KLOGG_QT_DIR (
-        if /I "%KLOGG_QT%"=="Qt6" (
+        if /I "!KLOGG_QT!"=="Qt6" (
             if defined CACHED_QT6_DIR (
-                set "KLOGG_QT_DIR=%CACHED_QT6_DIR%"
-                set "KLOGG_QT_CMAKE_DIR=%CACHED_QT6_DIR%"
+                set "KLOGG_QT_DIR=!CACHED_QT6_DIR!"
+                set "KLOGG_QT_CMAKE_DIR=!CACHED_QT6_DIR!"
             ) else (
                 if defined CACHED_QT_DIR (
-                    set "KLOGG_QT_DIR=%CACHED_QT_DIR%"
-                    set "KLOGG_QT_CMAKE_DIR=%CACHED_QT_DIR%"
+                    set "KLOGG_QT_DIR=!CACHED_QT_DIR!"
+                    set "KLOGG_QT_CMAKE_DIR=!CACHED_QT_DIR!"
                 )
             )
         ) else (
             if defined CACHED_QT5_DIR (
-                set "KLOGG_QT_DIR=%CACHED_QT5_DIR%"
-                set "KLOGG_QT_CMAKE_DIR=%CACHED_QT5_DIR%"
+                set "KLOGG_QT_DIR=!CACHED_QT5_DIR!"
+                set "KLOGG_QT_CMAKE_DIR=!CACHED_QT5_DIR!"
             ) else (
                 if defined CACHED_QT_DIR (
-                    set "KLOGG_QT_DIR=%CACHED_QT_DIR%"
-                    set "KLOGG_QT_CMAKE_DIR=%CACHED_QT_DIR%"
+                    set "KLOGG_QT_DIR=!CACHED_QT_DIR!"
+                    set "KLOGG_QT_CMAKE_DIR=!CACHED_QT_DIR!"
                 )
             )
         )
     )
 
     if defined CACHED_BUILD_TYPE (
-        if /I "%KLOGG_BUILD_CONFIG%"=="Release" set "KLOGG_BUILD_CONFIG=%CACHED_BUILD_TYPE%"
+        if /I "!KLOGG_BUILD_CONFIG!"=="Release" set "KLOGG_BUILD_CONFIG=!CACHED_BUILD_TYPE!"
     )
 )
 
 if defined KLOGG_QT_DIR (
     set "QT_INPUT=%KLOGG_QT_DIR%"
-    set "KLOGG_QT_CMAKE_DIR=%QT_INPUT%"
-    if exist "%QT_INPUT%\bin\windeployqt.exe" (
-        set "KLOGG_QT_DIR=%QT_INPUT%"
-        set "KLOGG_QT_CMAKE_DIR=%QT_INPUT%\lib\cmake\%KLOGG_QT%"
+    set "KLOGG_QT_CMAKE_DIR=!QT_INPUT!"
+    if exist "!QT_INPUT!\bin\windeployqt.exe" (
+        set "KLOGG_QT_DIR=!QT_INPUT!"
+        set "KLOGG_QT_CMAKE_DIR=!QT_INPUT!\lib\cmake\%KLOGG_QT%"
     ) else (
-        if exist "%QT_INPUT%\bin" (
-            set "KLOGG_QT_DIR=%QT_INPUT%"
-            set "KLOGG_QT_CMAKE_DIR=%QT_INPUT%\lib\cmake\%KLOGG_QT%"
+        if exist "!QT_INPUT!\bin" (
+            set "KLOGG_QT_DIR=!QT_INPUT!"
+            set "KLOGG_QT_CMAKE_DIR=!QT_INPUT!\lib\cmake\%KLOGG_QT%"
         ) else (
-            if exist "%QT_INPUT%\..\..\..\bin\windeployqt.exe" (
-                for %%I in ("%QT_INPUT%\..\..\..") do set "KLOGG_QT_DIR=%%~fI"
+            if exist "!QT_INPUT!\..\..\..\bin\windeployqt.exe" (
+                for %%I in ("!QT_INPUT!\..\..\..") do set "KLOGG_QT_DIR=%%~fI"
             ) else (
-                echo Warning: Could not infer Qt runtime root from "%QT_INPUT%".
-                set "KLOGG_QT_DIR=%QT_INPUT%"
+                echo Warning: Could not infer Qt runtime root from "!QT_INPUT!".
+                set "KLOGG_QT_DIR=!QT_INPUT!"
             )
         )
     )
 ) else (
-    if /I "%KLOGG_QT%"=="Qt6" (
+    if /I "!KLOGG_QT!"=="Qt6" (
         if defined Qt6_DIR (
-            set "KLOGG_QT_CMAKE_DIR=%Qt6_DIR%"
-            set "KLOGG_QT_DIR=%Qt6_DIR%"
+            set "KLOGG_QT_CMAKE_DIR=!Qt6_DIR!"
+            set "KLOGG_QT_DIR=!Qt6_DIR!"
         ) else (
             echo Warning: No Qt CMake directory configured. Relying on CMake package discovery.
         )
     ) else (
         if defined Qt5_DIR (
-            set "KLOGG_QT_CMAKE_DIR=%Qt5_DIR%"
-            set "KLOGG_QT_DIR=%Qt5_DIR%"
+            set "KLOGG_QT_CMAKE_DIR=!Qt5_DIR!"
+            set "KLOGG_QT_DIR=!Qt5_DIR!"
         ) else (
             echo Warning: No Qt CMake directory configured. Relying on CMake package discovery.
         )
@@ -177,37 +182,37 @@ echo Configuring CMake in "%BUILD_DIR%"...
 if exist "%CACHE_FILE%" (
     if defined KLOGG_QT_CMAKE_DIR (
         if defined KLOGG_NINJA_EXE (
-            cmake -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -DCMAKE_MAKE_PROGRAM="%KLOGG_NINJA_EXE%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DQT_DIR="%KLOGG_QT_CMAKE_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" -D%KLOGG_QT%_DIR="%KLOGG_QT_CMAKE_DIR%" %KLOGG_CMAKE_OPTS%
+            cmake %KLOGG_CMAKE_WARN_DEV% -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -DCMAKE_MAKE_PROGRAM="%KLOGG_NINJA_EXE%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DQT_DIR="%KLOGG_QT_CMAKE_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" -D%KLOGG_QT%_DIR="%KLOGG_QT_CMAKE_DIR%" %KLOGG_CMAKE_OPTS%
         ) else (
-            cmake -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DQT_DIR="%KLOGG_QT_CMAKE_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" -D%KLOGG_QT%_DIR="%KLOGG_QT_CMAKE_DIR%" %KLOGG_CMAKE_OPTS%
+            cmake %KLOGG_CMAKE_WARN_DEV% -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DQT_DIR="%KLOGG_QT_CMAKE_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" -D%KLOGG_QT%_DIR="%KLOGG_QT_CMAKE_DIR%" %KLOGG_CMAKE_OPTS%
         )
     ) else (
         if defined KLOGG_NINJA_EXE (
-            cmake -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -DCMAKE_MAKE_PROGRAM="%KLOGG_NINJA_EXE%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" %KLOGG_CMAKE_OPTS%
+            cmake %KLOGG_CMAKE_WARN_DEV% -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -DCMAKE_MAKE_PROGRAM="%KLOGG_NINJA_EXE%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" %KLOGG_CMAKE_OPTS%
         ) else (
-            cmake -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" %KLOGG_CMAKE_OPTS%
+            cmake %KLOGG_CMAKE_WARN_DEV% -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" %KLOGG_CMAKE_OPTS%
         )
     )
     if errorlevel 1 exit /b 1
 ) else (
     if /I "%KLOGG_CMAKE_GENERATOR:~0,13%"=="Visual Studio" (
         if defined KLOGG_QT_CMAKE_DIR (
-            cmake -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -A "%platform%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DQT_DIR="%KLOGG_QT_CMAKE_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" -D%KLOGG_QT%_DIR="%KLOGG_QT_CMAKE_DIR%" %KLOGG_CMAKE_OPTS%
+            cmake %KLOGG_CMAKE_WARN_DEV% -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -A "%platform%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DQT_DIR="%KLOGG_QT_CMAKE_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" -D%KLOGG_QT%_DIR="%KLOGG_QT_CMAKE_DIR%" %KLOGG_CMAKE_OPTS%
         ) else (
-            cmake -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -A "%platform%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" %KLOGG_CMAKE_OPTS%
+            cmake %KLOGG_CMAKE_WARN_DEV% -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -A "%platform%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" %KLOGG_CMAKE_OPTS%
         )
     ) else (
         if defined KLOGG_QT_CMAKE_DIR (
             if defined KLOGG_NINJA_EXE (
-                cmake -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -DCMAKE_MAKE_PROGRAM="%KLOGG_NINJA_EXE%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DQT_DIR="%KLOGG_QT_CMAKE_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" -D%KLOGG_QT%_DIR="%KLOGG_QT_CMAKE_DIR%" %KLOGG_CMAKE_OPTS%
+                cmake %KLOGG_CMAKE_WARN_DEV% -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -DCMAKE_MAKE_PROGRAM="%KLOGG_NINJA_EXE%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DQT_DIR="%KLOGG_QT_CMAKE_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" -D%KLOGG_QT%_DIR="%KLOGG_QT_CMAKE_DIR%" %KLOGG_CMAKE_OPTS%
             ) else (
-                cmake -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DQT_DIR="%KLOGG_QT_CMAKE_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" -D%KLOGG_QT%_DIR="%KLOGG_QT_CMAKE_DIR%" %KLOGG_CMAKE_OPTS%
+                cmake %KLOGG_CMAKE_WARN_DEV% -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DQT_DIR="%KLOGG_QT_CMAKE_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" -D%KLOGG_QT%_DIR="%KLOGG_QT_CMAKE_DIR%" %KLOGG_CMAKE_OPTS%
             )
         ) else (
             if defined KLOGG_NINJA_EXE (
-                cmake -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -DCMAKE_MAKE_PROGRAM="%KLOGG_NINJA_EXE%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" %KLOGG_CMAKE_OPTS%
+                cmake %KLOGG_CMAKE_WARN_DEV% -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -DCMAKE_MAKE_PROGRAM="%KLOGG_NINJA_EXE%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" %KLOGG_CMAKE_OPTS%
             ) else (
-                cmake -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" %KLOGG_CMAKE_OPTS%
+                cmake %KLOGG_CMAKE_WARN_DEV% -S "%KLOGG_WORKSPACE%" -B "%BUILD_DIR%" -G "%KLOGG_CMAKE_GENERATOR%" -DCMAKE_BUILD_TYPE=%KLOGG_BUILD_CONFIG% -DCMAKE_PREFIX_PATH="%KLOGG_QT_DIR%" -DCPM_SOURCE_CACHE="%KLOGG_CMAKE_SOURCE_CACHE%" %KLOGG_CMAKE_OPTS%
             )
         )
     )

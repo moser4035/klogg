@@ -212,6 +212,9 @@ MainWindow::MainWindow( WindowSession session )
     createActions();
     createMenus();
     createToolBars();
+    retiredCrawlerCleanupTimer_.setSingleShot( true );
+    connect( &retiredCrawlerCleanupTimer_, &QTimer::timeout, this,
+             &MainWindow::cleanupRetiredCrawlerWidgets );
 
     setAcceptDrops( true );
 
@@ -1653,7 +1656,7 @@ void MainWindow::closeTab( int index, ActionInitiator initiator )
     updateOpenedFilesMenu();
     updateRemoteSessionStatus();
 
-    widget->deleteLater();
+    retireClosedCrawlerWidget( widget );
 }
 
 void MainWindow::currentTabChanged( int index )
@@ -2083,6 +2086,39 @@ void MainWindow::resetRemoteSessionStatus()
     remoteStateWidget->setToolTip( QString{} );
     if ( remoteStateAction != nullptr ) {
         remoteStateAction->setVisible( false );
+    }
+}
+
+void MainWindow::retireClosedCrawlerWidget( CrawlerWidget* widget )
+{
+    if ( widget == nullptr ) {
+        return;
+    }
+
+    widget->hide();
+    widget->setParent( nullptr );
+    retiredCrawlerWidgets_.push_back( widget );
+
+    if ( !retiredCrawlerCleanupTimer_.isActive() ) {
+        retiredCrawlerCleanupTimer_.start( 0 );
+    }
+}
+
+void MainWindow::cleanupRetiredCrawlerWidgets()
+{
+    if ( retiredCrawlerWidgets_.empty() ) {
+        return;
+    }
+
+    auto* widget = retiredCrawlerWidgets_.front();
+    retiredCrawlerWidgets_.erase( retiredCrawlerWidgets_.begin() );
+
+    if ( widget != nullptr ) {
+        widget->deleteLater();
+    }
+
+    if ( !retiredCrawlerWidgets_.empty() ) {
+        retiredCrawlerCleanupTimer_.start( 0 );
     }
 }
 

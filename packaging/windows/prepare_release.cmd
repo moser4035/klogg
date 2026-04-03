@@ -42,12 +42,18 @@ if not exist "%BUILD_OUTPUT_DIR%\klogg.exe" (
 )
 
 call :detect_qt_dir
+call :detect_ssl_dir
 if not exist "%BUILD_OUTPUT_DIR%\%KLOGG_QT%Core.dll" (
     if defined KLOGG_QT_DIR (
         if exist "%KLOGG_QT_DIR%\bin\windeployqt.exe" (
             echo Running windeployqt from "%KLOGG_QT_DIR%\bin\windeployqt.exe"...
             set "PATH=%KLOGG_QT_DIR%\bin;%PATH%"
-            "%KLOGG_QT_DIR%\bin\windeployqt.exe" "%BUILD_OUTPUT_DIR%\klogg.exe"
+            if defined SSL_DIR (
+                for %%I in ("%SSL_DIR%\..") do set "OPENSSL_ROOT=%%~fI"
+                "%KLOGG_QT_DIR%\bin\windeployqt.exe" --force-openssl --openssl-root "!OPENSSL_ROOT!" "%BUILD_OUTPUT_DIR%\klogg.exe"
+            ) else (
+                "%KLOGG_QT_DIR%\bin\windeployqt.exe" "%BUILD_OUTPUT_DIR%\klogg.exe"
+            )
         ) else (
             echo Warning: windeployqt.exe not found under "%KLOGG_QT_DIR%\bin".
         )
@@ -88,7 +94,6 @@ if defined VC_REDIST_DIR (
     echo Warning: Could not locate the MSVC redistributable directory.
 )
 
-call :detect_ssl_dir
 if defined SSL_DIR (
     echo Copying OpenSSL from "%SSL_DIR%"...
     if /I "%KLOGG_ARCH%"=="x64" (
