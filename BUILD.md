@@ -59,7 +59,7 @@ The source tree should stay clean. Generated content is expected to live under t
   - `packaging/windows/` contains the maintained Windows helper scripts and installer definition
   - `packaging/windows/openssl-1.1/` can optionally hold the prebuilt OpenSSL runtime DLLs used for Windows packaging
 - Development build output:
-  - `build_root/` (or another directory you choose) contains CMake files, object files and `output/`
+  - `build_debug/` (or another directory you choose) contains CMake files, object files and `output/`
 - Release build output:
   - `build_release/output/<config>/` contains compiled binaries
   - `build_release/release/` contains the staged files used for packaging
@@ -91,8 +91,8 @@ Configure and build klogg:
 
 ```
 cd <path_to_klogg_repository_clone>
-mkdir build_root
-cd build_root
+mkdir build_debug
+cd build_debug
 cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 cmake --build .
 ```
@@ -103,7 +103,7 @@ cmake --build .
 sudo apt-get install qttools5-dev
 ```
 
-Binaries are placed into `build_root/output`.
+Binaries are placed into `build_debug/output`.
 
 See `.github/workflows/ci-build.yml` for more information on build process.
 
@@ -142,7 +142,7 @@ This is the preferred flow when you are iterating locally and do not need releas
 Configure:
 
 ```powershell
-cmake -S . -B build_root `
+cmake -S . -B build_debug `
   -G "Visual Studio 17 2022" -A x64 `
   -DCMAKE_BUILD_TYPE=RelWithDebInfo `
   -DQt6_DIR="C:\Qt\6.11.0\msvc2022_64\lib\cmake\Qt6" `
@@ -152,18 +152,18 @@ cmake -S . -B build_root `
 Build the main application:
 
 ```powershell
-cmake --build build_root --config RelWithDebInfo --target klogg
+cmake --build build_debug --config RelWithDebInfo --target klogg
 ```
 
 Useful locations:
 
-- binaries: `build_root/output/RelWithDebInfo/`
-- generated headers and docs: `build_root/generated/`
+- binaries: `build_debug/output/RelWithDebInfo/`
+- generated headers and docs: `build_debug/generated/`
 
 Run tests:
 
 ```powershell
-ctest --test-dir build_root --build-config RelWithDebInfo --output-on-failure
+ctest --test-dir build_debug --build-config RelWithDebInfo --output-on-failure
 ```
 
 If you want a faster Debug-style iteration loop, replace `RelWithDebInfo` with `Debug`.
@@ -248,13 +248,13 @@ Configure and build klogg:
 
 ```
 cd <path_to_klogg_repository_clone>
-mkdir build_root
-cd build_root
+mkdir build_debug
+cd build_debug
 cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DQt5_DIR=<path_to_qt_install> ..
 cmake --build .
 ```
 
-Binaries are placed into `build_root/output`.
+Binaries are placed into `build_debug/output`.
 
 By default, klogg will rely on cmake to figure out target MacOS version. Usually it uses build host version.
 To override default cmake value pass an option `-DKLOGG_OSX_DEPLOYMENT_TARGET=<target>` to cmake during configuration step,
@@ -267,6 +267,6 @@ Tests use catch2 (bundled with klogg sources) and require Qt5Test module. Tests 
 
 ```
 cd <path_to_klogg_repository_clone>
-cd build_root
+cd build_debug
 ctest --build-config RelWithDebInfo --verbose
 ```

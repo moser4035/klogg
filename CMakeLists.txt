@@ -246,7 +246,7 @@ endif()
 
 # Installation and packaging
 set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY true)
-set(CPACK_SOURCE_IGNORE_FILES "build_root;.git")
+set(CPACK_SOURCE_IGNORE_FILES "build_debug;build_root;.git")
 
 set(CPACK_OUTPUT_FILE_PREFIX "packages")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY ${PROJECT_DESCRIPTION})
