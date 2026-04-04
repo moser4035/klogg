@@ -64,10 +64,10 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: 6.7.3
+          version: 6.8.3
           arch: win64_msvc2022_64
           cache: true
-          cache-key-prefix: fork-ci-windows-x64-qt6
+          cache-key-prefix: fork-ci-windows-x64-qt683
 
       - name: Set Qt env
         shell: pwsh
