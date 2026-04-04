@@ -68,6 +68,7 @@ jobs:
           arch: win64_msvc2022_64
           cache: true
           cache-key-prefix: fork-ci-windows-x64-qt683
+          modules: qt5compat
 
       - name: Set Qt env
         shell: pwsh
