@@ -70,6 +70,9 @@ class TabbedCrawlerWidget : public QTabWidget {
     }
 
     void removeCrawler( int index );
+    int indexOfPath( const QString& fileName ) const;
+    void setTabPresentation( const QString& fileName, const QString& tabText,
+                             const QString& toolTip );
 
   protected:
     void keyPressEvent( QKeyEvent* event ) override;

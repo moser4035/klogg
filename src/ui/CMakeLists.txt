@@ -27,11 +27,17 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/quickfindpattern.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/quickfindwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/recentfiles.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/remotelogdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/remotelogmanager.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/remotelogsession.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/remotelogsettings.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/remotelogtypes.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savedsearches.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/selection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/session.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/sessioninfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/signalmux.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/sshprocesstransport.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedcrawlerwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewinterface.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewtools.h
@@ -76,11 +82,16 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/quickfindpattern.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/quickfindwidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/recentfiles.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/remotelogdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/remotelogmanager.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/remotelogsession.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/remotelogsettings.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/savedsearches.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/selection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/session.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessioninfo.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/signalmux.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/sshprocesstransport.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbedcrawlerwidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewtools.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/scratchpad.cpp

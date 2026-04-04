@@ -40,3 +40,8 @@ QLatin1String kloggGitVersion()
 {
     return QLatin1String( KLOGG_GIT_VERSION );
 }
+
+QLatin1String kloggHomepageUrl()
+{
+    return QLatin1String( KLOGG_HOMEPAGE_URL );
+}

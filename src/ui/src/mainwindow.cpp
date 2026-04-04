@@ -62,15 +62,19 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
+#include <QHBoxLayout>
 #include <QListView>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QProcess>
 #include <QProgressDialog>
 #include <QResource>
 #include <QScreen>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
+#include <QStatusBar>
+#include <QStringList>
 #include <QStringListModel>
 #include <QTemporaryFile>
 #include <QTextBrowser>
@@ -101,12 +105,87 @@
 #include "progress.h"
 #include "readablesize.h"
 #include "recentfiles.h"
+#include "remotelogdialog.h"
+#include "remotelogsession.h"
+#include "remotelogsettings.h"
 #include "sessioninfo.h"
 #include "shortcuts.h"
 #include "styles.h"
 #include "tabbedcrawlerwidget.h"
 
 namespace {
+
+QString remoteTooltipText( const RemoteLogSession* remoteSession )
+{
+    QStringList lines;
+    lines << remoteSession->sourceLabel() << remoteSession->statusText();
+
+    if ( !remoteSession->uiMessage().isEmpty() ) {
+        lines << QObject::tr( "Issue: %1" ).arg( remoteSession->uiMessage() );
+    }
+
+    if ( !remoteSession->diagnostics().trimmed().isEmpty() ) {
+        lines << remoteSession->diagnostics().trimmed();
+    }
+
+    return lines.join( '\n' );
+}
+
+QString remoteToolbarText( const RemoteLogSession* remoteSession )
+{
+    switch ( remoteSession->state() ) {
+    case RemoteLogSessionState::Starting:
+        return QObject::tr( "Connecting" );
+    case RemoteLogSessionState::Running:
+        return QObject::tr( "Connected" );
+    case RemoteLogSessionState::Stopped:
+        return QObject::tr( "Stopped" );
+    case RemoteLogSessionState::Failed:
+        return QObject::tr( "Disconnected" );
+    }
+
+    return {};
+}
+
+QString remoteStatusStyleSheet( RemoteLogSessionState state )
+{
+    switch ( state ) {
+    case RemoteLogSessionState::Failed:
+        return QStringLiteral( "QLabel { color: #b00020; font-weight: 600; }" );
+    case RemoteLogSessionState::Starting:
+        return QStringLiteral( "QLabel { color: #8a6d1d; font-weight: 600; }" );
+    case RemoteLogSessionState::Running:
+        return QStringLiteral( "QLabel { color: #2e7d32; font-weight: 600; }" );
+    case RemoteLogSessionState::Stopped:
+        return QStringLiteral( "QLabel { color: palette(window-text); font-weight: 600; }" );
+    }
+
+    return {};
+}
+
+QString remoteIndicatorStyleSheet( RemoteLogSessionState state )
+{
+    QString color = QStringLiteral( "#9e9e9e" );
+
+    switch ( state ) {
+    case RemoteLogSessionState::Failed:
+        color = QStringLiteral( "#b00020" );
+        break;
+    case RemoteLogSessionState::Starting:
+        color = QStringLiteral( "#c58b00" );
+        break;
+    case RemoteLogSessionState::Running:
+        color = QStringLiteral( "#2e7d32" );
+        break;
+    case RemoteLogSessionState::Stopped:
+        color = QStringLiteral( "#757575" );
+        break;
+    }
+
+    return QStringLiteral(
+               "QLabel { color: %1; min-width: 12px; max-width: 12px; font-size: 18px; }" )
+        .arg( color );
+}
 
 void signalCrawlerToFollowFile( CrawlerWidget* crawler_widget )
 {
@@ -128,10 +207,14 @@ MainWindow::MainWindow( WindowSession session )
     , quickFindMux_( session_.getQuickFindPattern() )
     , mainTabWidget_()
     , tempDir_( QDir::temp().filePath( "klogg_temp_" ) )
+    , remoteLogManager_( tempDir_.path(), this )
 {
     createActions();
     createMenus();
     createToolBars();
+    retiredCrawlerCleanupTimer_.setSingleShot( true );
+    connect( &retiredCrawlerCleanupTimer_, &QTimer::timeout, this,
+             &MainWindow::cleanupRetiredCrawlerWidgets );
 
     setAcceptDrops( true );
 
@@ -356,6 +439,9 @@ void MainWindow::reTranslateUI()
     openClipboardAction->setText( transAction( action::openClipboardText ) );
     openClipboardAction->setStatusTip( transAction( action::openClipboardStatusTip ) );
 
+    openRemoteLogAction->setText( transAction( action::openRemoteLogText ) );
+    openRemoteLogAction->setStatusTip( transAction( action::openRemoteLogStatusTip ) );
+
     openUrlAction->setText( transAction( action::openUrlText ) );
     openUrlAction->setStatusTip( transAction( action::openUrlStatusTip ) );
 
@@ -538,6 +624,11 @@ void MainWindow::createActions()
     openClipboardAction->setStatusTip( tr( action::openClipboardStatusTip ) );
     connect( openClipboardAction, &QAction::triggered, this,
              [ this ]( auto ) { this->openClipboard(); } );
+
+    openRemoteLogAction = new QAction( tr( action::openRemoteLogText ), this );
+    openRemoteLogAction->setStatusTip( tr( action::openRemoteLogStatusTip ) );
+    connect( openRemoteLogAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->openRemoteLog(); } );
 
     openUrlAction = new QAction( tr( action::openUrlText ), this );
     openUrlAction->setStatusTip( tr( action::openUrlStatusTip ) );
@@ -747,6 +838,7 @@ void MainWindow::createMenus()
     fileMenu->addAction( newWindowAction );
     fileMenu->addAction( openAction );
     fileMenu->addAction( openClipboardAction );
+    fileMenu->addAction( openRemoteLogAction );
     fileMenu->addAction( openUrlAction );
     recentFilesMenu = fileMenu->addMenu( tr( "Open Recent" ) );
     for ( auto i = 0u; i < recentFileActions.size(); ++i ) {
@@ -848,6 +940,21 @@ void MainWindow::createToolBars()
     encodingField = new QLabel();
     dateField->setAlignment( Qt::AlignHCenter | Qt::AlignVCenter );
 
+    remoteStateWidget = new QWidget();
+    auto* remoteStateLayout = new QHBoxLayout( remoteStateWidget );
+    remoteStateLayout->setContentsMargins( 0, 0, 0, 0 );
+    remoteStateLayout->setSpacing( 4 );
+
+    remoteStateIndicator = new QLabel( QStringLiteral( "\xE2\x97\x8F" ), remoteStateWidget );
+    remoteStateIndicator->setAlignment( Qt::AlignHCenter | Qt::AlignVCenter );
+
+    remoteStateField = new QLabel( remoteStateWidget );
+    remoteStateField->setAlignment( Qt::AlignHCenter | Qt::AlignVCenter );
+    remoteStateField->setContentsMargins( 0, 0, 4, 0 );
+    remoteStateLayout->addWidget( remoteStateIndicator );
+    remoteStateLayout->addWidget( remoteStateField );
+    remoteStateWidget->setSizePolicy( QSizePolicy::Maximum, QSizePolicy::Preferred );
+
     lineNbField = new QLabel();
     lineNbField->setAlignment( Qt::AlignRight | Qt::AlignVCenter );
     lineNbField->setContentsMargins( 2, 0, 2, 0 );
@@ -864,11 +971,14 @@ void MainWindow::createToolBars()
     toolBar->addWidget( infoLine );
     toolBar->addAction( stopAction );
 
-    infoToolbarSeparators.reserve( 5 );
+    infoToolbarSeparators.reserve( 6 );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
     toolBar->addWidget( sizeField );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
     toolBar->addWidget( dateField );
+    infoToolbarSeparators.push_back( toolBar->addSeparator() );
+    remoteStateAction = toolBar->addWidget( remoteStateWidget );
+    remoteStateAction->setVisible( false );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
     toolBar->addWidget( encodingField );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
@@ -1114,6 +1224,12 @@ void MainWindow::clearLog()
 void MainWindow::copyFullPath()
 {
     const auto current_file = session_.getFilename( currentCrawlerWidget() );
+    if ( const auto* remoteSession = remoteLogManager_.sessionForMirrorPath( current_file );
+         remoteSession != nullptr ) {
+        sendTextToClipboard( remoteSession->sourceLabel() );
+        return;
+    }
+
     sendTextToClipboard( QDir::toNativeSeparators( current_file ) );
 }
 
@@ -1149,6 +1265,83 @@ void MainWindow::tryOpenClipboard( int tryTimes )
 void MainWindow::openClipboard()
 {
     tryOpenClipboard( ClipboardMaxTry );
+}
+
+void MainWindow::openRemoteLog()
+{
+    auto& remoteLogSettings = RemoteLogSettings::getSynced();
+    RemoteLogDialog dialog( remoteLogSettings.recentTargets(), remoteLogSettings.defaultPort(),
+                            remoteLogSettings.defaultInitialLines(),
+                            remoteLogSettings.preferredToolPath(), this );
+
+    if ( dialog.exec() == QDialog::Accepted ) {
+        openRemoteLog( dialog.request() );
+    }
+}
+
+bool MainWindow::openRemoteLog( const RemoteLogLaunchRequest& request )
+{
+    auto& remoteLogSettings = RemoteLogSettings::getSynced();
+
+    QString errorMessage;
+    auto* remoteSession = remoteLogManager_.createSession(
+        request, request.toolPath.isEmpty() ? remoteLogSettings.preferredToolPath() : QString{},
+        &errorMessage );
+
+    if ( remoteSession == nullptr ) {
+        QMessageBox::critical( this, tr( "Open Remote Log" ),
+                               errorMessage.isEmpty()
+                                   ? tr( "Failed to start the remote log session." )
+                                   : errorMessage );
+        return false;
+    }
+
+    connect( remoteSession, &RemoteLogSession::stateChanged, this,
+             [ this, mirrorPath = remoteSession->mirrorPath() ]( RemoteLogSessionState ) {
+                 if ( remoteLogManager_.isManagedMirrorPath( mirrorPath ) ) {
+                     updateRemoteSessionPresentation( mirrorPath );
+                     updateRemoteSessionStatus();
+                     showRemoteConnectFailureDialog(
+                         remoteLogManager_.sessionForMirrorPath( mirrorPath ) );
+                     if ( currentCrawlerWidget() != nullptr
+                          && session_.getFilename( currentCrawlerWidget() ) == mirrorPath ) {
+                         showRemoteSessionStatusMessage(
+                             remoteLogManager_.sessionForMirrorPath( mirrorPath ) );
+                     }
+                 }
+             } );
+
+    connect( remoteSession, &RemoteLogSession::warningsChanged, this,
+             [ this, remoteSession ]( const QString& warnings ) {
+                 updateRemoteSessionPresentation( remoteSession->mirrorPath() );
+                 updateRemoteSessionStatus();
+
+                 if ( warnings.isEmpty() ) {
+                     return;
+                 }
+
+                 if ( currentCrawlerWidget() != nullptr
+                      && session_.getFilename( currentCrawlerWidget() ) == remoteSession->mirrorPath() ) {
+                     showRemoteSessionStatusMessage( remoteSession );
+                 }
+             } );
+
+    if ( !loadFile( remoteSession->mirrorPath(), true ) ) {
+        remoteLogManager_.closeSession( remoteSession->mirrorPath(), true );
+        QMessageBox::critical( this, tr( "Open Remote Log" ),
+                               tr( "Failed to open the local mirror file for the remote log." ) );
+        return false;
+    }
+
+    remoteLogSettings.setDefaultPort( request.port );
+    remoteLogSettings.setDefaultInitialLines( request.initialLines );
+    remoteLogSettings.setPreferredToolPath( request.toolPath );
+    remoteLogSettings.addRecentTarget( request );
+    remoteLogSettings.save();
+
+    updateRemoteSessionPresentation( remoteSession->mirrorPath() );
+    updateRemoteSessionStatus();
+    return true;
 }
 
 void MainWindow::openUrl()
@@ -1218,14 +1411,14 @@ void MainWindow::about()
         tr( "<h2>klogg %1</h2>"
             "<p>A fast, advanced log explorer.</p>"
             "<p>Built %2 from %3</p>"
-            "<p><a href=\"https://github.com/variar/klogg\">https://github.com/variar/klogg</a></p>"
+            "<p><a href=\"%4\">%4</a></p>"
             "<p>This is fork of glogg</p>"
             "<p><a href=\"http://glogg.bonnefon.org/\">http://glogg.bonnefon.org/</a></p>"
             "<p>Using icons from <a href=\"https://icons8.com\">icons8.com</a> project</p>"
             "<p>Copyright &copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors</p>"
             "<p>You may modify and redistribute the program under the terms of the GPL (version 3 "
             "or later).</p>" )
-            .arg( kloggVersion(), kloggBuildDate(), kloggCommit() ) );
+            .arg( kloggVersion(), kloggBuildDate(), kloggCommit(), kloggHomepageUrl() ) );
 }
 
 void MainWindow::aboutQt()
@@ -1373,8 +1566,11 @@ void MainWindow::updateLoadingProgress( int progress )
 {
     LOG_DEBUG << "Loading progress: " << progress;
 
-    QString current_file
-        = QDir::toNativeSeparators( session_.getFilename( currentCrawlerWidget() ) );
+    const auto fileName = session_.getFilename( currentCrawlerWidget() );
+    const auto* remoteSession = remoteLogManager_.sessionForMirrorPath( fileName );
+    const auto current_file
+        = remoteSession != nullptr ? remoteSession->sourceLabel()
+                                   : QDir::toNativeSeparators( fileName );
 
     // We ignore 0% and 100% to avoid a flash when the file (or update)
     // is very short.
@@ -1401,6 +1597,7 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
 
         infoLine->hideGauge();
         showInfoLabels( true );
+        updateRemoteSessionStatus();
         stopAction->setEnabled( false );
         reloadAction->setEnabled( true );
 
@@ -1440,19 +1637,26 @@ void MainWindow::closeTab( int index, ActionInitiator initiator )
     auto widget = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
 
     assert( widget );
+    const auto fileName = session_.getFilename( widget );
 
     widget->stopLoading();
     mainTabWidget_.removeCrawler( index );
 
-    if ( initiator == ActionInitiator::User ) {
-        addRecentFile( session_.getFilename( widget ) );
+    if ( initiator == ActionInitiator::User && !isManagedRemoteFile( fileName ) ) {
+        addRecentFile( fileName );
+    }
+
+    if ( isManagedRemoteFile( fileName ) ) {
+        remoteConnectFailureDialogsShown_.remove( fileName );
+        remoteLogManager_.closeSession( fileName, true );
     }
 
     session_.close( widget );
 
     updateOpenedFilesMenu();
+    updateRemoteSessionStatus();
 
-    widget->deleteLater();
+    retireClosedCrawlerWidget( widget );
 }
 
 void MainWindow::currentTabChanged( int index )
@@ -1470,6 +1674,7 @@ void MainWindow::currentTabChanged( int index )
         updateMenuBarFromDocument( crawler_widget );
         updateTitleBar( session_.getFilename( crawler_widget ) );
         updateFavoritesMenu();
+        updateRemoteSessionStatus();
 
         editMenu->setEnabled( true );
     }
@@ -1481,6 +1686,7 @@ void MainWindow::currentTabChanged( int index )
         infoLine->hideGauge();
         infoLine->clear();
         showInfoLabels( false );
+        updateRemoteSessionStatus();
 
         updateTitleBar( QString() );
 
@@ -1824,7 +2030,13 @@ void MainWindow::updateTitleBar( const QString& file_name )
 {
     QString shownName = tr( "Untitled" );
     if ( !file_name.isEmpty() ) {
-        shownName = strippedName( file_name );
+        if ( const auto* remoteSession = remoteLogManager_.sessionForMirrorPath( file_name );
+             remoteSession != nullptr ) {
+            shownName = remoteSession->tabLabel();
+        }
+        else {
+            shownName = strippedName( file_name );
+        }
     }
 
     QString indexPart = "";
@@ -1838,10 +2050,147 @@ void MainWindow::updateTitleBar( const QString& file_name )
 
 void MainWindow::addRecentFile( const QString& fileName )
 {
+    if ( isManagedRemoteFile( fileName ) ) {
+        return;
+    }
+
     auto& recentFiles = RecentFiles::getSynced();
     recentFiles.addRecent( fileName );
     recentFiles.save();
     updateRecentFileActions();
+}
+
+bool MainWindow::isManagedRemoteFile( const QString& fileName ) const
+{
+    return remoteLogManager_.isManagedMirrorPath( fileName );
+}
+
+void MainWindow::updateRemoteSessionPresentation( const QString& fileName )
+{
+    auto* remoteSession = remoteLogManager_.sessionForMirrorPath( fileName );
+    if ( remoteSession == nullptr ) {
+        return;
+    }
+
+    const auto toolTip = remoteTooltipText( remoteSession );
+    mainTabWidget_.setTabPresentation( fileName, remoteSession->tabLabel(), toolTip );
+}
+
+void MainWindow::resetRemoteSessionStatus()
+{
+    remoteStateField->clear();
+    remoteStateField->setStyleSheet( QString{} );
+    remoteStateField->setToolTip( QString{} );
+    remoteStateIndicator->setStyleSheet( QString{} );
+    remoteStateIndicator->setToolTip( QString{} );
+    remoteStateWidget->setToolTip( QString{} );
+    if ( remoteStateAction != nullptr ) {
+        remoteStateAction->setVisible( false );
+    }
+}
+
+void MainWindow::retireClosedCrawlerWidget( CrawlerWidget* widget )
+{
+    if ( widget == nullptr ) {
+        return;
+    }
+
+    widget->hide();
+    widget->setParent( nullptr );
+    retiredCrawlerWidgets_.push_back( widget );
+
+    if ( !retiredCrawlerCleanupTimer_.isActive() ) {
+        retiredCrawlerCleanupTimer_.start( 0 );
+    }
+}
+
+void MainWindow::cleanupRetiredCrawlerWidgets()
+{
+    if ( retiredCrawlerWidgets_.empty() ) {
+        return;
+    }
+
+    auto* widget = retiredCrawlerWidgets_.front();
+    retiredCrawlerWidgets_.erase( retiredCrawlerWidgets_.begin() );
+
+    if ( widget != nullptr ) {
+        widget->deleteLater();
+    }
+
+    if ( !retiredCrawlerWidgets_.empty() ) {
+        retiredCrawlerCleanupTimer_.start( 0 );
+    }
+}
+
+void MainWindow::updateRemoteSessionStatus()
+{
+    auto* crawler = currentCrawlerWidget();
+    if ( crawler == nullptr ) {
+        resetRemoteSessionStatus();
+        return;
+    }
+
+    auto* remoteSession = remoteLogManager_.sessionForMirrorPath( session_.getFilename( crawler ) );
+    if ( remoteSession == nullptr ) {
+        resetRemoteSessionStatus();
+        return;
+    }
+
+    const auto toolTip = remoteTooltipText( remoteSession );
+
+    remoteStateIndicator->setText( QString( QChar( 0x25CF ) ) );
+    remoteStateIndicator->setStyleSheet( remoteIndicatorStyleSheet( remoteSession->state() ) );
+    remoteStateIndicator->setToolTip( toolTip );
+    remoteStateField->setText( remoteToolbarText( remoteSession ) );
+    remoteStateField->setToolTip( toolTip );
+    remoteStateField->setStyleSheet( remoteStatusStyleSheet( remoteSession->state() ) );
+    remoteStateWidget->setToolTip( toolTip );
+    if ( remoteStateAction != nullptr ) {
+        remoteStateAction->setVisible( true );
+    }
+}
+
+void MainWindow::showRemoteConnectFailureDialog( const RemoteLogSession* remoteSession )
+{
+    if ( remoteSession == nullptr || !remoteSession->failedDuringInitialConnect() ) {
+        return;
+    }
+
+    const auto mirrorPath = remoteSession->mirrorPath();
+    if ( remoteConnectFailureDialogsShown_.contains( mirrorPath ) ) {
+        return;
+    }
+
+    remoteConnectFailureDialogsShown_.insert( mirrorPath );
+
+    QMessageBox messageBox( QMessageBox::Critical, tr( "Open Remote Log" ),
+                            remoteSession->uiMessage().isEmpty()
+                                ? tr( "Failed to connect to the remote log session." )
+                                : remoteSession->uiMessage(),
+                            QMessageBox::Ok, this );
+    messageBox.setInformativeText( remoteSession->sourceLabel() );
+
+    const auto diagnostics = remoteSession->diagnostics().trimmed();
+    if ( !diagnostics.isEmpty() ) {
+        messageBox.setDetailedText( diagnostics );
+    }
+
+    messageBox.exec();
+}
+
+void MainWindow::showRemoteSessionStatusMessage( const RemoteLogSession* remoteSession )
+{
+    if ( remoteSession == nullptr ) {
+        return;
+    }
+
+    const auto message
+        = remoteSession->uiMessage().isEmpty() ? remoteSession->statusText() : remoteSession->uiMessage();
+    if ( message.isEmpty() ) {
+        return;
+    }
+
+    statusBar()->showMessage( message, 5000 );
 }
 
 // Updates the actions for the recent files.
@@ -1889,6 +2238,8 @@ void MainWindow::clearRecentFileActions()
 // (used when the tab is changed)
 void MainWindow::updateMenuBarFromDocument( const CrawlerWidget* crawler )
 {
+    const auto isRemote = crawler != nullptr && isManagedRemoteFile( session_.getFilename( crawler ) );
+
     const auto encodingMib = crawler->encodingMib();
 
     auto encodingActions = encodingGroup->actions();
@@ -1905,6 +2256,7 @@ void MainWindow::updateMenuBarFromDocument( const CrawlerWidget* crawler )
 
     followAction->setChecked( crawler->isFollowEnabled() );
     textWrapAction->setChecked( crawler->isTextWrapEnabled() );
+    clearLogAction->setEnabled( !isRemote );
 }
 
 // Update the top info line from the session
@@ -1987,13 +2339,15 @@ void MainWindow::updateFavoritesMenu()
 
     const auto& favorites = FavoriteFiles::getSynced().favorites();
     auto crawler = currentCrawlerWidget();
+    const auto currentPath = crawler != nullptr ? session_.getFilename( crawler ) : QString{};
+    const auto isRemoteCurrent = !currentPath.isEmpty() && isManagedRemoteFile( currentPath );
 
-    addToFavoritesAction->setEnabled( crawler != nullptr );
-    addToFavoritesMenuAction->setEnabled( crawler != nullptr );
+    addToFavoritesAction->setEnabled( crawler != nullptr && !isRemoteCurrent );
+    addToFavoritesMenuAction->setEnabled( crawler != nullptr && !isRemoteCurrent );
     removeFromFavoritesAction->setEnabled( !favorites.empty() );
 
-    if ( crawler ) {
-        const auto path = session_.getFilename( crawler );
+    if ( crawler && !isRemoteCurrent ) {
+        const auto path = currentPath;
         if ( std::any_of( favorites.begin(), favorites.end(), FullPathComparator( path ) ) ) {
 
             addToFavoritesAction->setText( QApplication::translate(
@@ -2022,6 +2376,10 @@ void MainWindow::addToFavorites()
     if ( const auto crawler = currentCrawlerWidget() ) {
         auto& favorites = FavoriteFiles::get();
         const auto path = session_.getFilename( crawler );
+
+        if ( isManagedRemoteFile( path ) ) {
+            return;
+        }
 
         if ( addToFavoritesAction->data().toBool() ) {
             favorites.add( path );
@@ -2176,6 +2534,7 @@ void MainWindow::showInfoLabels( bool show )
     if ( !show ) {
         sizeField->clear();
         dateField->clear();
+        resetRemoteSessionStatus();
         encodingField->clear();
         lineNbField->clear();
     }
@@ -2191,7 +2550,9 @@ void MainWindow::writeSettings()
         widget_list;
     for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
         auto view = qobject_cast<const CrawlerWidget*>( mainTabWidget_.widget( i ) );
-        widget_list.emplace_back( view, 0UL, view->context() );
+        if ( view != nullptr && !isManagedRemoteFile( session_.getFilename( view ) ) ) {
+            widget_list.emplace_back( view, 0UL, view->context() );
+        }
     }
     session_.save( widget_list, saveGeometry() );
 }
@@ -2212,6 +2573,8 @@ void MainWindow::readSettings()
 
     FavoriteFiles::getSynced();
     updateFavoritesMenu();
+
+    RemoteLogSettings::getSynced();
 
     HighlighterSetCollection::getSynced();
     updateHighlightersMenu();

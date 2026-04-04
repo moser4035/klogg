@@ -35,5 +35,6 @@ file(APPEND generated/version.h "#define KLOGG_DATE \"${BUILD_DATE}\"\n\n")
 file(APPEND generated/version.h "#define KLOGG_GIT_VERSION \"${GIT_DESCRIBE}\"\n\n")
 file(APPEND generated/version.h "#define KLOGG_COMMIT \"${GIT_COMMIT_HASH}\"\n\n")
 file(APPEND generated/version.h "#define KLOGG_VERSION \"${BUILD_VERSION}\"\n\n")
+file(APPEND generated/version.h "#define KLOGG_HOMEPAGE_URL \"${PROJECT_HOMEPAGE_URL}\"\n\n")
 
 file(APPEND generated/version.h "#endif // GENERATED_KLOGG_VERSION_H\n")

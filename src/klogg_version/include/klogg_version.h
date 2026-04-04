@@ -26,5 +26,6 @@ QLatin1String kloggVersion();
 QLatin1String kloggBuildDate();
 QLatin1String kloggCommit();
 QLatin1String kloggGitVersion();
+QLatin1String kloggHomepageUrl();
 
 #endif // KLOGG_KLOGG_VERSION

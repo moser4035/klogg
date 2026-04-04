@@ -41,8 +41,10 @@
 
 #include <QMainWindow>
 #include <QMenu>
+#include <QSet>
 #include <QSystemTrayIcon>
 #include <QTemporaryDir>
+#include <QTimer>
 
 #include <QTranslator>
 #include <array>
@@ -56,6 +58,7 @@
 #include "pathline.h"
 #include "quickfindmux.h"
 #include "quickfindwidget.h"
+#include "remotelogmanager.h"
 #include "session.h"
 #include "signalmux.h"
 #include "tabbedcrawlerwidget.h"
@@ -120,6 +123,7 @@ class MainWindow : public QMainWindow {
     void openContainingFolder();
     void openInEditor();
     void openClipboard();
+    void openRemoteLog();
     void openUrl();
     void editHighlighters();
     void editPredefinedFilters( const QString& newFilter = {} );
@@ -199,6 +203,7 @@ class MainWindow : public QMainWindow {
     void readSettings();
     void writeSettings();
     bool loadFile( const QString& fileName, bool followFile = false );
+    bool openRemoteLog( const RemoteLogLaunchRequest& request );
     bool extractAndLoadFile( const QString& fileName );
     void openRemoteFile( const QUrl& url );
     void updateTitleBar( const QString& fileName );
@@ -219,6 +224,14 @@ class MainWindow : public QMainWindow {
     void removeFromRecent( const QString& pathToRemove );
     void tryOpenClipboard( int tryTimes );
     void updateShortcuts();
+    bool isManagedRemoteFile( const QString& fileName ) const;
+    void updateRemoteSessionPresentation( const QString& fileName );
+    void updateRemoteSessionStatus();
+    void showRemoteSessionStatusMessage( const RemoteLogSession* remoteSession );
+    void showRemoteConnectFailureDialog( const RemoteLogSession* remoteSession );
+    void resetRemoteSessionStatus();
+    void cleanupRetiredCrawlerWidgets();
+    void retireClosedCrawlerWidget( CrawlerWidget* widget );
 
     WindowSession session_;
     QString loadingFileName;
@@ -241,6 +254,10 @@ class MainWindow : public QMainWindow {
     QLabel* sizeField;
     QLabel* dateField;
     QLabel* encodingField;
+    QWidget* remoteStateWidget;
+    QLabel* remoteStateIndicator;
+    QLabel* remoteStateField;
+    QAction* remoteStateAction;
     std::vector<QAction*> infoToolbarSeparators;
 
     QToolBar* toolBar;
@@ -259,6 +276,7 @@ class MainWindow : public QMainWindow {
     QAction* openContainingFolderAction;
     QAction* openInEditorAction;
     QAction* openClipboardAction;
+    QAction* openRemoteLogAction;
     QAction* openUrlAction;
     QAction* overviewVisibleAction;
     QAction* lineNumbersVisibleInMainAction;
@@ -314,6 +332,10 @@ class MainWindow : public QMainWindow {
     TabbedScratchPad scratchPad_;
 
     QTemporaryDir tempDir_;
+    RemoteLogManager remoteLogManager_;
+    QSet<QString> remoteConnectFailureDialogsShown_;
+    QTimer retiredCrawlerCleanupTimer_;
+    std::vector<CrawlerWidget*> retiredCrawlerWidgets_;
 
     bool isMaximized_ = false;
     bool isCloseFromTray_ = false;

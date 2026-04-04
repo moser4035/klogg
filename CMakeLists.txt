@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 project(
   klogg
@@ -7,12 +8,12 @@ project(
   LANGUAGES C CXX ASM
 )
 
-set(PROJECT_HOMEPAGE_URL "https://github.com/variar/klogg")
+set(PROJECT_HOMEPAGE_URL "https://github.com/moser4035/klogg")
 
 string(TIMESTAMP PRODUCT_CURRENT_YEAR "%Y")
 set(COMPANY "Anton Filimonov")
 set(COPYRIGHT "Copyright (c) ${PRODUCT_CURRENT_YEAR} Nicolas Bonnefon, Anton Filimonov and other contributors.")
-set(IDENTIFIER "com.github.variar.klogg")
+set(IDENTIFIER "com.github.moser4035.klogg")
 set(PROJECT_DESCRIPTION "${PROJECT_NAME} log viewer")
 
 option(KLOGG_BUILD_TESTS "Build tests" ON)
@@ -44,10 +45,21 @@ set(BUILD_VERSION
     $ENV{KLOGG_VERSION}
     CACHE STRING "build version"
 )
+set(KLOGG_VERSION_SUFFIX
+    "custom"
+    CACHE STRING "suffix appended to the displayed app version when BUILD_VERSION is not provided"
+)
 set(BUILD_NUMBER
     ""
     CACHE STRING "build number"
 )
+
+if("${BUILD_VERSION}" STREQUAL "")
+  set(BUILD_VERSION "${PROJECT_VERSION}")
+  if(NOT "${KLOGG_VERSION_SUFFIX}" STREQUAL "")
+    set(BUILD_VERSION "${BUILD_VERSION}-${KLOGG_VERSION_SUFFIX}")
+  endif()
+endif()
 
 set(NOTICE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/NOTICE)
 set(COPYING_FILE ${CMAKE_CURRENT_SOURCE_DIR}/COPYING)
@@ -122,7 +134,9 @@ if(MSVC)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /D __SSE4_1__=1 /D __SSE4_2__=1")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D __SSE4_1__=1 /D __SSE4_2__=1")
 
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj ")
+  # /FS allows parallel MSVC compilers to coordinate writes to the same PDB.
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /FS")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FS /bigobj ")
 else()
   ucm_add_flags(CXX "-fno-sized-deallocation -fno-omit-frame-pointer")
 
@@ -232,7 +246,7 @@ endif()
 
 # Installation and packaging
 set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY true)
-set(CPACK_SOURCE_IGNORE_FILES "build_root;.git")
+set(CPACK_SOURCE_IGNORE_FILES "build_debug;build_root;.git")
 
 set(CPACK_OUTPUT_FILE_PREFIX "packages")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY ${PROJECT_DESCRIPTION})
@@ -291,7 +305,7 @@ if(UNIX)
     #deb
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
     set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
-    set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "http://github.com/variar/klogg")
+    set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/moser4035/klogg")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Anton Filimonov <${CPACK_PACKAGE_CONTACT}>")
     set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS YES)
 
@@ -300,7 +314,7 @@ if(UNIX)
     set(CPACK_RPM_PACKAGE_LICENSE "GPLv3")
     set(CPACK_RPM_PACKAGE_AUTOREQ YES)
     #set(CPACK_RPM_PACKAGE_REQUIRES "qt5-qtbase >= ${KLOGG_QT_VERSION}")
-    set(CPACK_RPM_PACKAGE_URL "http://github.com/variar/klogg")
+    set(CPACK_RPM_PACKAGE_URL "https://github.com/moser4035/klogg")
     set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
         /usr/share/applications
         /usr/share/icons

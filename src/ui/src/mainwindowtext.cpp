@@ -58,6 +58,9 @@ const char* action::copyPathToClipboardStatusTip
     = QT_TR_NOOP( "Copy full path for file to clipboard" );
 const char* action::openClipboardText = QT_TR_NOOP( "Open from clipboard" );
 const char* action::openClipboardStatusTip = QT_TR_NOOP( "Open clipboard as log file" );
+const char* action::openRemoteLogText = QT_TR_NOOP( "Open remote log..." );
+const char* action::openRemoteLogStatusTip
+    = QT_TR_NOOP( "Open a remote log over SSH" );
 const char* action::openUrlText = QT_TR_NOOP( "Open from URL..." );
 const char* action::openUrlStatusTip = QT_TR_NOOP( "Open URL as log file" );
 const char* action::overviewVisibleText = QT_TR_NOOP( "Matches &overview" );

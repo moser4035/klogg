@@ -56,6 +56,8 @@ extern const char* copyPathToClipboardText;
 extern const char* copyPathToClipboardStatusTip;
 extern const char* openClipboardText;
 extern const char* openClipboardStatusTip;
+extern const char* openRemoteLogText;
+extern const char* openRemoteLogStatusTip;
 extern const char* openUrlText;
 extern const char* openUrlStatusTip;
 extern const char* overviewVisibleText;
