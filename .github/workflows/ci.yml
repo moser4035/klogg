@@ -65,7 +65,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.7.3
-          arch: win64_msvc2019_64
+          arch: win64_msvc2022_64
           cache: true
           cache-key-prefix: fork-ci-windows-x64-qt6
           modules: qt5compat
@@ -74,7 +74,8 @@ jobs:
       - name: Set Qt env
         shell: pwsh
         run: |
-          "KLOGG_QT_DIR=$env:Qt6_Dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Add-Content -Path $env:GITHUB_ENV -Value "KLOGG_QT_DIR=$env:QT_ROOT_DIR"
+          Add-Content -Path $env:GITHUB_ENV -Value "Qt6_DIR=$env:QT_ROOT_DIR\lib\cmake\Qt6"
 
       - name: Cache Boost
         id: cache-boost
